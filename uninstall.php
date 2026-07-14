@@ -20,6 +20,7 @@ $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}dsap_topics");
 delete_option('dsap_settings');
 delete_option('dsap_db_version');
 delete_option('dsap_strategy_plan');
+delete_option('dsap_auto_setup_status');
 delete_option('dsap_gsc_tokens');
 delete_option('dsap_gsc_last_sync');
 delete_option('dsap_gsc_sites');

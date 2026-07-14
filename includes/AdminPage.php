@@ -58,6 +58,7 @@ final class AdminPage
         $lastSync = get_option('dsap_gsc_last_sync', []);
         $gscSites = get_option('dsap_gsc_sites', []);
         $hasGithubToken = (string) $settings['github_token'] !== '';
+        $autoSetupState = self::autoSetupState($settings, $hasKey, is_array($strategy) ? $strategy : []);
         ?>
         <div class="wrap dsap-wrap">
             <h1>Daily SEO AI Publisher</h1>
@@ -83,6 +84,11 @@ final class AdminPage
                 </div>
 
                 <div class="dsap-panel">
+                    <h2>進捗</h2>
+                    <?php self::autoSetupProgress($autoSetupState); ?>
+                </div>
+
+                <div class="dsap-panel">
                     <h2>実行前チェック</h2>
                     <div class="dsap-setup-checks">
                         <span class="<?php echo $hasKey ? 'is-done' : 'is-needed'; ?>">OpenAI APIキー: <?php echo esc_html($hasKey ? '設定済み' : '未設定'); ?></span>
@@ -92,6 +98,19 @@ final class AdminPage
                     <?php if (!$hasKey) : ?>
                         <p class="description">先に「設定」タブでOpenAI APIキーを保存してください。保存後にこのタブへ戻って自動初期設定を実行します。</p>
                     <?php endif; ?>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>現在の初期設定</h2>
+                    <table class="widefat striped">
+                        <tbody>
+                            <tr><th>サイトテーマ</th><td><?php echo esc_html((string) ($settings['site_theme'] ?: '-')); ?></td></tr>
+                            <tr><th>対象読者</th><td><?php echo esc_html((string) ($settings['target_audience'] ?: '-')); ?></td></tr>
+                            <tr><th>CV目標</th><td><?php echo esc_html((string) ($settings['conversion_goal'] ?: '-')); ?></td></tr>
+                            <tr><th>毎日実行</th><td><?php echo esc_html(!empty($settings['daily_enabled']) ? '有効 ' . (string) $settings['daily_time'] : '停止中'); ?></td></tr>
+                            <tr><th>投稿状態</th><td><?php echo esc_html(['draft' => '下書き', 'pending' => 'レビュー待ち', 'publish' => '公開'][(string) $settings['post_status']] ?? (string) $settings['post_status']); ?></td></tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <div class="dsap-panel">
@@ -345,11 +364,16 @@ final class AdminPage
         Scheduler::reschedulePdca($settings);
 
         $jobId = Scheduler::queueStrategyJob('auto_setup');
+        update_option('dsap_auto_setup_status', [
+            'started_at' => current_time('mysql'),
+            'job_id' => $jobId,
+            'settings_saved' => true,
+        ], false);
         if ($jobId > 0) {
             wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
         }
 
-        self::redirect($jobId > 0 ? '自動初期設定を完了し、AIサイト戦略の作成を開始しました。' : '自動初期設定を完了しました。');
+        self::redirect($jobId > 0 ? '自動初期設定を保存し、AIサイト戦略の作成を開始しました。進捗ゲージで状態を確認できます。' : '自動初期設定を保存しました。AIサイト戦略ジョブは作成できませんでした。');
     }
 
     public static function generateStrategy(): void
@@ -622,6 +646,111 @@ final class AdminPage
             echo '<div class="dsap-setup-complete"><strong>セットアップ完了</strong><span>Search Console取得と改善判定が自動実行されます。</span></div>';
         }
         echo '<script>document.addEventListener("DOMContentLoaded",function(){var b=document.getElementById("dsap-copy-redirect"),c=document.getElementById("dsap-redirect-uri");if(b&&c){b.addEventListener("click",function(){navigator.clipboard.writeText(c.textContent||"");b.textContent="コピー済み";});}});</script>';
+    }
+
+    private static function autoSetupState(array $settings, bool $hasKey, array $strategy): array
+    {
+        $status = get_option('dsap_auto_setup_status', []);
+        $status = is_array($status) ? $status : [];
+        $jobId = (int) ($status['job_id'] ?? 0);
+        $job = $jobId > 0 ? (new JobRepository())->find($jobId) : null;
+        $hasStrategy = is_array($strategy['plan'] ?? null);
+        $settingsSaved = !empty($status['settings_saved']);
+        $basicReady = $hasKey
+            && trim((string) ($settings['site_theme'] ?? '')) !== ''
+            && trim((string) ($settings['target_audience'] ?? '')) !== ''
+            && trim((string) ($settings['conversion_goal'] ?? '')) !== ''
+            && !empty($settings['daily_enabled']);
+
+        $steps = [
+            ['label' => 'APIキー確認', 'status' => $hasKey ? 'done' : 'current'],
+            ['label' => '基本設定保存', 'status' => 'pending'],
+            ['label' => 'AI戦略ジョブ作成', 'status' => 'pending'],
+            ['label' => 'AI戦略作成', 'status' => 'pending'],
+            ['label' => '記事計画準備', 'status' => 'pending'],
+        ];
+
+        if (!$hasKey) {
+            return [
+                'progress' => 0,
+                'label' => 'APIキー待ち',
+                'current' => '設定タブでOpenAI APIキーを保存してください。',
+                'steps' => $steps,
+            ];
+        }
+
+        if ($hasStrategy || (is_array($job) && (string) ($job['status'] ?? '') === 'complete')) {
+            foreach ($steps as $index => $step) {
+                $steps[$index]['status'] = 'done';
+            }
+            return [
+                'progress' => 100,
+                'label' => '初期設定完了',
+                'current' => 'AIサイト戦略と記事計画の準備が完了しました。',
+                'steps' => $steps,
+            ];
+        }
+
+        $steps[0]['status'] = 'done';
+        if (!$settingsSaved && !$basicReady) {
+            $steps[1]['status'] = 'current';
+            return [
+                'progress' => 15,
+                'label' => '実行待ち',
+                'current' => '自動初期設定ボタンを押すと、空欄の基本設定をAI運用向けに補完します。',
+                'steps' => $steps,
+            ];
+        }
+
+        $steps[1]['status'] = 'done';
+        if (!is_array($job)) {
+            $steps[2]['status'] = $jobId > 0 ? 'error' : 'current';
+            return [
+                'progress' => $jobId > 0 ? 55 : 45,
+                'label' => $jobId > 0 ? 'ジョブ確認中' : '基本設定保存済み',
+                'current' => $jobId > 0
+                    ? '作成済みのAI戦略ジョブを確認できません。もう一度自動初期設定を実行してください。'
+                    : '基本設定は保存済みです。次にAI戦略ジョブを作成します。',
+                'steps' => $steps,
+            ];
+        }
+
+        $steps[2]['status'] = 'done';
+        $jobStatus = (string) ($job['status'] ?? '');
+        if (in_array($jobStatus, ['failed_retryable', 'failed_permanent'], true)) {
+            $steps[3]['status'] = 'error';
+            return [
+                'progress' => 65,
+                'label' => 'AI戦略で要確認',
+                'current' => (string) ($job['error_message'] ?? 'AI戦略ジョブでエラーが発生しました。パイプライン進捗から再実行できます。'),
+                'steps' => $steps,
+            ];
+        }
+
+        $steps[3]['status'] = 'current';
+        return [
+            'progress' => $jobStatus === 'running' ? 80 : 65,
+            'label' => $jobStatus === 'running' ? 'AI戦略作成中' : 'AI戦略待機中',
+            'current' => $jobStatus === 'running'
+                ? 'AIが集客記事、CV記事、内部リンク、アフィリエイト導線を設計しています。'
+                : 'WordPress CronでAI戦略作成を開始します。少し待ってから画面を更新してください。',
+            'steps' => $steps,
+        ];
+    }
+
+    private static function autoSetupProgress(array $state): void
+    {
+        $progress = max(0, min(100, (int) ($state['progress'] ?? 0)));
+        $steps = is_array($state['steps'] ?? null) ? $state['steps'] : [];
+
+        echo '<div class="dsap-setup-meter" aria-label="初期設定進捗" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' . esc_attr((string) $progress) . '"><span style="width:' . esc_attr((string) $progress) . '%"></span></div>';
+        echo '<p class="dsap-setup-current"><strong>' . esc_html((string) ($state['label'] ?? '確認中')) . '</strong><span>' . esc_html((string) ($state['current'] ?? '初期設定の状態を確認しています。')) . '</span></p>';
+        echo '<ol class="dsap-setup-steps">';
+        foreach ($steps as $step) {
+            $stepStatus = in_array((string) ($step['status'] ?? 'pending'), ['done', 'current', 'error', 'pending'], true) ? (string) $step['status'] : 'pending';
+            echo '<li class="is-' . esc_attr($stepStatus) . '">' . esc_html((string) ($step['label'] ?? '')) . '</li>';
+        }
+        echo '</ol>';
     }
 
     private static function jobsTable(array $jobs): void
