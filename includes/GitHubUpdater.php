@@ -7,7 +7,7 @@ namespace DSAP;
 final class GitHubUpdater
 {
     public const CACHE_KEY = 'dsap_github_release_v1';
-    private const REPOSITORY = 'seiya327/daily-seo-ai-publisher';
+    private const REPOSITORY = 'seiya327/Daily-SEO-AI-';
     private const SLUG = 'daily-seo-ai-publisher';
     private const ZIP_ASSET = 'daily-seo-ai-publisher.zip';
     private const CHECKSUM_ASSET = 'daily-seo-ai-publisher.zip.sha256';
@@ -123,7 +123,7 @@ final class GitHubUpdater
             if ($code === 404) {
                 return new \WP_Error(
                     'dsap_github_release',
-                    'GitHub Releaseを取得できません。公開リポジトリなら v0.5.3 などのReleaseを作成してください。非公開リポジトリなら、設定の詳細設定にGitHubトークンを保存してください。'
+                    'GitHub Releaseを取得できません。公開リポジトリなら v0.5.4 などのReleaseを作成してください。非公開リポジトリなら、設定の詳細設定にGitHubトークンを保存してください。'
                 );
             }
             if ($code === 401 || $code === 403) {
