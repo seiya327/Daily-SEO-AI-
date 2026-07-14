@@ -64,20 +64,55 @@ final class AdminPage
             <?php self::notice(); ?>
 
             <nav class="nav-tab-wrapper dsap-tabs">
-                <a class="nav-tab nav-tab-active" href="#dsap-dashboard">運用</a>
+                <a class="nav-tab nav-tab-active" href="#dsap-initial-setup">初期設定</a>
+                <a class="nav-tab" href="#dsap-dashboard">運用</a>
                 <a class="nav-tab" href="#dsap-strategy">戦略</a>
                 <a class="nav-tab" href="#dsap-pdca">改善</a>
                 <a class="nav-tab" href="#dsap-settings">設定</a>
             </nav>
 
-            <section id="dsap-dashboard" class="dsap-section is-active">
+            <section id="dsap-initial-setup" class="dsap-section is-active">
+                <div class="dsap-hero">
+                    <div>
+                        <h2>最初だけここで設定する</h2>
+                        <p>APIキーを保存したあと、このボタンで記事生成に必要な初期設定とAIサイト戦略の作成をまとめて開始します。</p>
+                    </div>
+                    <div class="dsap-actions">
+                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
+                    </div>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>実行前チェック</h2>
+                    <div class="dsap-setup-checks">
+                        <span class="<?php echo $hasKey ? 'is-done' : 'is-needed'; ?>">OpenAI APIキー: <?php echo esc_html($hasKey ? '設定済み' : '未設定'); ?></span>
+                        <span class="<?php echo trim((string) $settings['site_theme']) !== '' ? 'is-done' : 'is-optional'; ?>">サイトテーマ: <?php echo esc_html(trim((string) $settings['site_theme']) !== '' ? '入力済み' : 'AIが補完'); ?></span>
+                        <span class="<?php echo trim((string) $settings['conversion_goal']) !== '' ? 'is-done' : 'is-optional'; ?>">CV目標: <?php echo esc_html(trim((string) $settings['conversion_goal']) !== '' ? '入力済み' : 'AIが補完'); ?></span>
+                    </div>
+                    <?php if (!$hasKey) : ?>
+                        <p class="description">先に「設定」タブでOpenAI APIキーを保存してください。保存後にこのタブへ戻って自動初期設定を実行します。</p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>自動で行うこと</h2>
+                    <ol class="dsap-cycle">
+                        <li>API利用モードへ切り替え</li>
+                        <li>毎日実行、下書き投稿、記事数、CTA、集客/CV比率を初期化</li>
+                        <li>サイト名からテーマ・読者・CV目標の不足分を補完</li>
+                        <li>GitHub更新確認を有効化</li>
+                        <li>AIサイト戦略の作成ジョブを開始</li>
+                    </ol>
+                </div>
+            </section>
+
+            <section id="dsap-dashboard" class="dsap-section">
                 <div class="dsap-hero">
                     <div>
                         <h2>AIに任せて、毎日のSEO運用を回す</h2>
                         <p>最初は商材・読者・誘導先だけ入れれば動きます。細かいモデルや比率はAI標準設定で始められます。</p>
                     </div>
                     <div class="dsap-actions">
-                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
                         <?php self::actionForm('dsap_generate_strategy', 'AIで戦略を作る', 'primary'); ?>
                         <?php self::actionForm('dsap_test_run', 'テスト実行', 'secondary'); ?>
                         <?php self::actionForm('dsap_run_now', '今日の分を実行', 'secondary'); ?>
@@ -209,7 +244,6 @@ final class AdminPage
                         <?php submit_button('設定を保存'); ?>
                     </form>
                     <div class="dsap-actions dsap-settings-actions">
-                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
                         <?php if ($hasKey) : ?><?php self::actionForm('dsap_delete_api_key', 'APIキーを削除', 'delete'); ?><?php endif; ?>
                         <?php self::actionForm('dsap_check_github_updates', 'GitHub更新を確認', 'secondary'); ?>
                     </div>

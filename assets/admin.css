@@ -37,6 +37,11 @@
 .dsap-copy-row { display: flex; align-items: stretch; gap: 8px; margin: 10px 0 16px; }
 .dsap-copy-row code { flex: 1; padding: 8px; overflow-wrap: anywhere; white-space: normal; background: #f0f0f1; }
 .dsap-setup-complete { display: flex; gap: 12px; align-items: center; padding: 12px; border-left: 4px solid #00a32a; background: #edfaef; }
+.dsap-setup-checks { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 12px; }
+.dsap-setup-checks span { display: inline-block; padding: 7px 10px; border: 1px solid #dcdcde; border-radius: 4px; background: #f6f7f7; }
+.dsap-setup-checks .is-done { border-color: #00a32a; background: #edfaef; color: #006b1b; }
+.dsap-setup-checks .is-needed { border-color: #d63638; background: #fcf0f1; color: #8a2424; }
+.dsap-setup-checks .is-optional { border-color: #dba617; background: #fcf9e8; color: #6f5200; }
 .dsap-quick-grid { display: grid; gap: 14px; max-width: 880px; }
 .dsap-quick-grid label { display: grid; gap: 6px; font-weight: 600; }
 .dsap-quick-grid input, .dsap-quick-grid textarea { font-weight: 400; }
