@@ -13,6 +13,7 @@ final class AdminPage
         add_action('admin_post_dsap_run_now', [self::class, 'runNow']);
         add_action('admin_post_dsap_test_run', [self::class, 'testRun']);
         add_action('admin_post_dsap_auto_setup', [self::class, 'autoSetup']);
+        add_action('admin_post_dsap_reset_article_plan', [self::class, 'resetArticlePlan']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
         add_action('admin_post_dsap_retry_job', [self::class, 'retryJob']);
         add_action('admin_post_dsap_delete_api_key', [self::class, 'deleteApiKey']);
@@ -28,6 +29,7 @@ final class AdminPage
         add_action('admin_post_dsap_save_gsc_property', [self::class, 'saveGscProperty']);
         add_action('admin_post_dsap_enable_pdca', [self::class, 'enablePdca']);
         add_action('admin_post_dsap_check_github_updates', [self::class, 'checkGitHubUpdates']);
+        add_action('admin_post_dsap_install_github_update', [self::class, 'installGitHubUpdate']);
         add_action('admin_enqueue_scripts', [self::class, 'assets']);
     }
 
@@ -80,6 +82,7 @@ final class AdminPage
                     </div>
                     <div class="dsap-actions">
                         <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
+                        <?php self::actionForm('dsap_reset_article_plan', '記事計画をリセット', 'delete'); ?>
                     </div>
                 </div>
 
@@ -265,6 +268,7 @@ final class AdminPage
                     <div class="dsap-actions dsap-settings-actions">
                         <?php if ($hasKey) : ?><?php self::actionForm('dsap_delete_api_key', 'APIキーを削除', 'delete'); ?><?php endif; ?>
                         <?php self::actionForm('dsap_check_github_updates', 'GitHub更新を確認', 'secondary'); ?>
+                        <?php self::actionForm('dsap_install_github_update', 'GitHubから今すぐ更新', 'primary'); ?>
                     </div>
                 </div>
             </section>
@@ -363,6 +367,7 @@ final class AdminPage
         Scheduler::rescheduleDaily($settings);
         Scheduler::reschedulePdca($settings);
 
+        self::clearArticlePlan();
         $jobId = Scheduler::queueStrategyJob('auto_setup');
         update_option('dsap_auto_setup_status', [
             'started_at' => current_time('mysql'),
@@ -374,6 +379,13 @@ final class AdminPage
         }
 
         self::redirect($jobId > 0 ? '自動初期設定を保存し、AIサイト戦略の作成を開始しました。進捗ゲージで状態を確認できます。' : '自動初期設定を保存しました。AIサイト戦略ジョブは作成できませんでした。');
+    }
+
+    public static function resetArticlePlan(): void
+    {
+        self::guard('dsap_reset_article_plan');
+        self::clearArticlePlan();
+        self::redirect('記事計画とAIサイト戦略をリセットしました。設定を直してから自動初期設定を実行すると、新しい計画を作り直します。');
     }
 
     public static function generateStrategy(): void
@@ -565,6 +577,44 @@ final class AdminPage
         self::redirect($message);
     }
 
+    public static function installGitHubUpdate(): void
+    {
+        self::guard('dsap_install_github_update');
+        delete_transient(GitHubUpdater::CACHE_KEY);
+        $release = (new GitHubUpdater())->release();
+        if (is_wp_error($release)) {
+            self::redirect($release->get_error_message());
+        }
+        if (version_compare((string) $release['version'], DSAP_VERSION, '<=')) {
+            self::redirect('最新版です。現在: ' . DSAP_VERSION);
+        }
+
+        wp_clean_plugins_cache(true);
+        wp_update_plugins();
+
+        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/misc.php';
+
+        $skin = new \Automatic_Upgrader_Skin();
+        $upgrader = new \Plugin_Upgrader($skin);
+        ob_start();
+        $result = $upgrader->upgrade(plugin_basename(DSAP_FILE));
+        ob_end_clean();
+
+        if (is_wp_error($result)) {
+            self::redirect($result->get_error_message());
+        }
+        if ($result !== true) {
+            self::redirect('GitHub更新を実行できませんでした。WordPressのファイル権限、またはGitHub更新情報を確認してください。');
+        }
+
+        wp_clean_plugins_cache(true);
+        delete_transient(GitHubUpdater::CACHE_KEY);
+        self::redirect('GitHubからバージョン ' . (string) $release['version'] . ' へ更新しました。');
+    }
+
     private static function modelSelect(string $key, string $current): void
     {
         echo '<select name="' . esc_attr(Settings::OPTION) . '[' . esc_attr($key) . ']">';
@@ -646,6 +696,18 @@ final class AdminPage
             echo '<div class="dsap-setup-complete"><strong>セットアップ完了</strong><span>Search Console取得と改善判定が自動実行されます。</span></div>';
         }
         echo '<script>document.addEventListener("DOMContentLoaded",function(){var b=document.getElementById("dsap-copy-redirect"),c=document.getElementById("dsap-redirect-uri");if(b&&c){b.addEventListener("click",function(){navigator.clipboard.writeText(c.textContent||"");b.textContent="コピー済み";});}});</script>';
+    }
+
+    private static function clearArticlePlan(): void
+    {
+        global $wpdb;
+
+        delete_option('dsap_strategy_plan');
+        delete_option('dsap_auto_setup_status');
+        $wpdb->query('DELETE FROM ' . Database::table('topics'));
+        $wpdb->query(
+            "UPDATE " . Database::table('jobs') . " SET status = 'failed_permanent', error_message = 'Reset by user.', updated_at = '" . esc_sql(current_time('mysql')) . "' WHERE job_type = 'site_strategy' AND status IN ('queued', 'running', 'failed_retryable')"
+        );
     }
 
     private static function autoSetupState(array $settings, bool $hasKey, array $strategy): array
