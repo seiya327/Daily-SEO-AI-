@@ -77,15 +77,22 @@ final class GitHubUpdater
         if ($reply !== false || !$this->isOurPackage($package)) {
             return $reply;
         }
+
         $tempFile = wp_tempnam(self::ZIP_ASSET);
         if (!$tempFile) {
             return new \WP_Error('dsap_update_temp', '更新ZIP用の一時ファイルを作成できませんでした。');
         }
+
         $response = $this->assetRequest($package, $tempFile);
         if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
             @unlink($tempFile);
-            return is_wp_error($response) ? $response : new \WP_Error('dsap_update_download', 'GitHub Release ZIPをダウンロードできませんでした。');
+            return is_wp_error($response) ? $response : new \WP_Error('dsap_update_download', 'GitHubの更新ZIPをダウンロードできませんでした。');
         }
+
+        if ($this->isTagArchive($package)) {
+            return $this->repackageTagArchive($tempFile);
+        }
+
         $release = $this->release();
         $expected = is_wp_error($release) ? '' : (string) ($release['sha256'] ?? '');
         $actual = hash_file('sha256', $tempFile);
@@ -110,6 +117,7 @@ final class GitHubUpdater
         if (is_array($cached)) {
             return $cached;
         }
+
         $response = wp_remote_get('https://api.github.com/repos/' . self::REPOSITORY . '/releases/latest', [
             'timeout' => 20,
             'headers' => $this->headers(false),
@@ -117,20 +125,23 @@ final class GitHubUpdater
         if (is_wp_error($response)) {
             return new \WP_Error('dsap_github_network', $response->get_error_message());
         }
+
         $code = (int) wp_remote_retrieve_response_code($response);
         $json = json_decode((string) wp_remote_retrieve_body($response), true);
-        if ($code < 200 || $code >= 300 || !is_array($json)) {
-            if ($code === 404) {
-                return new \WP_Error(
-                    'dsap_github_release',
-                    'GitHub Releaseを取得できません。公開リポジトリなら v0.5.4 などのReleaseを作成してください。非公開リポジトリなら、設定の詳細設定にGitHubトークンを保存してください。'
-                );
-            }
-            if ($code === 401 || $code === 403) {
-                return new \WP_Error('dsap_github_auth', 'GitHubトークンの権限が足りないか期限切れです。対象リポジトリのContents読み取り権限を確認してください。');
-            }
-            return new \WP_Error('dsap_github_release', 'GitHub Release情報を取得できませんでした。HTTP ' . $code);
+        if ($code >= 200 && $code < 300 && is_array($json)) {
+            return $this->releaseFromGitHubRelease($json);
         }
+        if ($code === 404) {
+            return $this->releaseFromLatestTag();
+        }
+        if ($code === 401 || $code === 403) {
+            return new \WP_Error('dsap_github_auth', 'GitHubトークンの権限が足りないか期限切れです。対象リポジトリのContents読み取り権限を確認してください。');
+        }
+        return new \WP_Error('dsap_github_release', 'GitHub更新情報を取得できませんでした。HTTP ' . $code);
+    }
+
+    private function releaseFromGitHubRelease(array $json): array|\WP_Error
+    {
         $zip = $this->asset($json, self::ZIP_ASSET);
         $checksum = $this->asset($json, self::CHECKSUM_ASSET);
         if ($zip === null || $checksum === null) {
@@ -141,22 +152,146 @@ final class GitHubUpdater
             return $sha256;
         }
         $token = (string) Settings::get()['github_token'];
-        $package = $token !== '' ? (string) $zip['url'] : (string) $zip['browser_download_url'];
-        $release = [
+        return $this->cacheRelease([
             'version' => ltrim((string) ($json['tag_name'] ?? ''), 'vV'),
-            'package' => $package,
+            'package' => $token !== '' ? (string) $zip['url'] : (string) $zip['browser_download_url'],
             'sha256' => $sha256,
             'notes' => (string) ($json['body'] ?? ''),
             'published_at' => (string) ($json['published_at'] ?? ''),
+        ]);
+    }
+
+    private function releaseFromLatestTag(): array|\WP_Error
+    {
+        $response = wp_remote_get('https://api.github.com/repos/' . self::REPOSITORY . '/tags?per_page=30', [
+            'timeout' => 20,
+            'headers' => $this->headers(false),
+        ]);
+        if (is_wp_error($response)) {
+            return new \WP_Error('dsap_github_tags_network', $response->get_error_message());
+        }
+        $code = (int) wp_remote_retrieve_response_code($response);
+        $tags = json_decode((string) wp_remote_retrieve_body($response), true);
+        if ($code < 200 || $code >= 300 || !is_array($tags)) {
+            return new \WP_Error('dsap_github_tags', 'GitHub Releaseが無く、タグ一覧も取得できませんでした。HTTP ' . $code);
+        }
+
+        $latestName = '';
+        $latestVersion = '';
+        foreach ($tags as $tag) {
+            $name = is_array($tag) ? (string) ($tag['name'] ?? '') : '';
+            $version = ltrim($name, 'vV');
+            if (preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $version) !== 1) {
+                continue;
+            }
+            if ($latestVersion === '' || version_compare($version, $latestVersion, '>')) {
+                $latestName = $name;
+                $latestVersion = $version;
+            }
+        }
+        if ($latestName === '') {
+            return new \WP_Error('dsap_github_no_tag', 'GitHub Releaseが無く、v1.2.3形式のタグも見つかりませんでした。');
+        }
+
+        $token = (string) Settings::get()['github_token'];
+        $package = $token !== ''
+            ? 'https://api.github.com/repos/' . self::REPOSITORY . '/zipball/' . rawurlencode($latestName)
+            : 'https://github.com/' . self::REPOSITORY . '/archive/refs/tags/' . rawurlencode($latestName) . '.zip';
+
+        return $this->cacheRelease([
+            'version' => $latestVersion,
+            'package' => $package,
+            'sha256' => '',
+            'notes' => 'GitHub Releaseが無いため、最新タグ ' . $latestName . ' から更新します。',
+            'published_at' => '',
+        ]);
+    }
+
+    private function cacheRelease(array $release): array|\WP_Error
+    {
+        $release = array_merge([
+            'version' => '',
+            'package' => '',
+            'sha256' => '',
+            'notes' => '',
+            'published_at' => '',
             'requires' => '6.5',
             'tested' => '6.6',
             'requires_php' => '8.0',
-        ];
-        if (!preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $release['version'])) {
-            return new \WP_Error('dsap_github_version', 'GitHub Releaseのバージョン形式が不正です。タグは v1.2.3 の形式にしてください。');
+        ], $release);
+        if (!preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', (string) $release['version'])) {
+            return new \WP_Error('dsap_github_version', 'GitHubのバージョン形式が不正です。タグは v1.2.3 の形式にしてください。');
         }
         set_transient(self::CACHE_KEY, $release, 6 * HOUR_IN_SECONDS);
         return $release;
+    }
+
+    private function repackageTagArchive(string $archiveFile): string|\WP_Error
+    {
+        if (!class_exists('\ZipArchive')) {
+            @unlink($archiveFile);
+            return new \WP_Error('dsap_ziparchive_missing', 'タグZIPの詰め替えに必要なPHP ZipArchiveが有効ではありません。');
+        }
+
+        $source = new \ZipArchive();
+        if ($source->open($archiveFile) !== true) {
+            @unlink($archiveFile);
+            return new \WP_Error('dsap_tag_zip_open', 'GitHubタグZIPを開けませんでした。');
+        }
+
+        $targetFile = wp_tempnam(self::ZIP_ASSET);
+        if (!$targetFile) {
+            $source->close();
+            @unlink($archiveFile);
+            return new \WP_Error('dsap_tag_zip_temp', '更新ZIP用の一時ファイルを作成できませんでした。');
+        }
+
+        $target = new \ZipArchive();
+        if ($target->open($targetFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            $source->close();
+            @unlink($archiveFile);
+            @unlink($targetFile);
+            return new \WP_Error('dsap_tag_zip_create', 'WordPress用更新ZIPを作成できませんでした。');
+        }
+
+        $hasMain = false;
+        for ($i = 0; $i < $source->numFiles; $i++) {
+            $name = (string) $source->getNameIndex($i);
+            if ($name === '' || str_ends_with($name, '/')) {
+                continue;
+            }
+            $parts = explode('/', $name, 2);
+            if (count($parts) !== 2 || $parts[1] === '') {
+                continue;
+            }
+            $relative = $parts[1];
+            if ($relative === '.gitignore' || $relative === 'README.md' || str_starts_with($relative, '.github/')) {
+                continue;
+            }
+            if (preg_match('#(^|/)\.\.(/|$)#', $relative) === 1) {
+                continue;
+            }
+            $contents = $source->getFromIndex($i);
+            if ($contents === false) {
+                continue;
+            }
+            $zipName = self::SLUG . '/' . $relative;
+            if ($relative === 'daily-seo-ai-publisher.php') {
+                $hasMain = true;
+            }
+            $target->addFromString($zipName, $contents);
+        }
+
+        $target->close();
+        $source->close();
+        @unlink($archiveFile);
+
+        if (!$hasMain) {
+            @unlink($targetFile);
+            return new \WP_Error('dsap_tag_zip_main_missing', 'GitHubタグZIPにプラグイン本体ファイルが見つかりませんでした。');
+        }
+
+        return $targetFile;
     }
 
     private function checksum(array $asset): string|\WP_Error
@@ -201,15 +336,24 @@ final class GitHubUpdater
     private function isOurPackage(string $package): bool
     {
         return str_starts_with($package, 'https://api.github.com/repos/' . self::REPOSITORY . '/releases/assets/')
-            || str_starts_with($package, 'https://github.com/' . self::REPOSITORY . '/releases/download/');
+            || str_starts_with($package, 'https://api.github.com/repos/' . self::REPOSITORY . '/zipball/')
+            || str_starts_with($package, 'https://github.com/' . self::REPOSITORY . '/releases/download/')
+            || str_starts_with($package, 'https://github.com/' . self::REPOSITORY . '/archive/refs/tags/');
+    }
+
+    private function isTagArchive(string $package): bool
+    {
+        return str_starts_with($package, 'https://api.github.com/repos/' . self::REPOSITORY . '/zipball/')
+            || str_starts_with($package, 'https://github.com/' . self::REPOSITORY . '/archive/refs/tags/');
     }
 
     private function assetRequest(string $url, string $filename = '')
     {
-        $isApiAsset = str_starts_with($url, 'https://api.github.com/repos/' . self::REPOSITORY . '/releases/assets/');
+        $isApiBinary = str_starts_with($url, 'https://api.github.com/repos/' . self::REPOSITORY . '/releases/assets/')
+            || str_starts_with($url, 'https://api.github.com/repos/' . self::REPOSITORY . '/zipball/');
         $args = [
             'timeout' => $filename !== '' ? 300 : 20,
-            'redirection' => $isApiAsset ? 0 : 5,
+            'redirection' => $isApiBinary ? 0 : 5,
             'headers' => $this->headers(true),
         ];
         if ($filename !== '') {
@@ -217,7 +361,7 @@ final class GitHubUpdater
             $args['filename'] = $filename;
         }
         $response = wp_remote_get($url, $args);
-        if (!$isApiAsset || is_wp_error($response)) {
+        if (!$isApiBinary || is_wp_error($response)) {
             return $response;
         }
         $code = (int) wp_remote_retrieve_response_code($response);

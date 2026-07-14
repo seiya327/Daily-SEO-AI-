@@ -12,6 +12,7 @@ final class AdminPage
         add_action('admin_post_dsap_create_topic', [self::class, 'createTopic']);
         add_action('admin_post_dsap_run_now', [self::class, 'runNow']);
         add_action('admin_post_dsap_test_run', [self::class, 'testRun']);
+        add_action('admin_post_dsap_auto_setup', [self::class, 'autoSetup']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
         add_action('admin_post_dsap_retry_job', [self::class, 'retryJob']);
         add_action('admin_post_dsap_delete_api_key', [self::class, 'deleteApiKey']);
@@ -76,6 +77,7 @@ final class AdminPage
                         <p>最初は商材・読者・誘導先だけ入れれば動きます。細かいモデルや比率はAI標準設定で始められます。</p>
                     </div>
                     <div class="dsap-actions">
+                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
                         <?php self::actionForm('dsap_generate_strategy', 'AIで戦略を作る', 'primary'); ?>
                         <?php self::actionForm('dsap_test_run', 'テスト実行', 'secondary'); ?>
                         <?php self::actionForm('dsap_run_now', '今日の分を実行', 'secondary'); ?>
@@ -207,6 +209,7 @@ final class AdminPage
                         <?php submit_button('設定を保存'); ?>
                     </form>
                     <div class="dsap-actions dsap-settings-actions">
+                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
                         <?php if ($hasKey) : ?><?php self::actionForm('dsap_delete_api_key', 'APIキーを削除', 'delete'); ?><?php endif; ?>
                         <?php self::actionForm('dsap_check_github_updates', 'GitHub更新を確認', 'secondary'); ?>
                     </div>
@@ -250,6 +253,69 @@ final class AdminPage
             wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
         }
         self::redirect($jobId > 0 ? 'テストジョブを開始しました。進捗欄を更新して確認できます。' : 'テスト対象の記事計画がありません。');
+    }
+
+    public static function autoSetup(): void
+    {
+        self::guard('dsap_auto_setup');
+        if (Settings::apiKey() === '') {
+            self::redirect('先にOpenAI APIキーを保存してください。その後に自動初期設定を実行できます。');
+        }
+
+        $settings = Settings::get();
+        $siteName = trim(wp_specialchars_decode((string) get_bloginfo('name'), ENT_QUOTES));
+        $description = trim(wp_specialchars_decode((string) get_bloginfo('description'), ENT_QUOTES));
+        $siteTheme = trim((string) $settings['site_theme']);
+        if ($siteTheme === '') {
+            $siteTheme = $siteName !== '' ? $siteName : wp_parse_url(home_url('/'), PHP_URL_HOST);
+            if ($description !== '') {
+                $siteTheme .= ' - ' . $description;
+            }
+        }
+
+        $settings['mock_mode'] = false;
+        $settings['daily_enabled'] = true;
+        $settings['daily_time'] = (string) ($settings['daily_time'] ?: '09:00');
+        $settings['max_daily_new_articles'] = max(1, min(3, (int) ($settings['max_daily_new_articles'] ?: 1)));
+        $settings['post_status'] = in_array((string) $settings['post_status'], ['draft', 'pending', 'publish'], true) ? $settings['post_status'] : 'draft';
+        $settings['attraction_ratio'] = (int) ($settings['attraction_ratio'] ?: 70);
+        $settings['site_theme'] = $siteTheme;
+        if (trim((string) $settings['target_audience']) === '') {
+            $settings['target_audience'] = 'このサイトのテーマに関心があり、比較・検討しながら信頼できる情報を探している見込み客。';
+        }
+        if (trim((string) $settings['conversion_goal']) === '') {
+            $settings['conversion_goal'] = trim((string) $settings['affiliate_url']) !== ''
+                ? '読者の悩みを解決したうえで、自然にアフィリエイトリンクのクリックへ誘導する。'
+                : '読者の悩みを解決したうえで、問い合わせ・申込み・資料請求などの行動へ誘導する。';
+        }
+        if (trim((string) $settings['affiliate_anchor']) === '') {
+            $settings['affiliate_anchor'] = '公式サイトで詳細を見る';
+        }
+        if (trim((string) $settings['affiliate_disclosure']) === '') {
+            $settings['affiliate_disclosure'] = '本記事には広告・アフィリエイトリンクが含まれます。';
+        }
+        $settings['model_research'] = (string) ($settings['model_research'] ?: 'gpt-5.6-terra');
+        $settings['model_audit'] = (string) ($settings['model_audit'] ?: 'gpt-5.6-luna');
+        $settings['model_refresh'] = (string) ($settings['model_refresh'] ?: 'gpt-5.6-terra');
+        $settings['github_updates_enabled'] = true;
+        $settings['refresh_min_impressions'] = max(100, (int) $settings['refresh_min_impressions']);
+        $settings['refresh_cooldown_days'] = max(28, (int) $settings['refresh_cooldown_days']);
+        $settings['max_daily_refreshes'] = max(1, (int) $settings['max_daily_refreshes']);
+        if (GoogleOAuth::connected() && trim((string) $settings['gsc_site_url']) !== '') {
+            $settings['gsc_enabled'] = true;
+            $settings['refresh_enabled'] = true;
+        }
+
+        update_option(Settings::OPTION, $settings, false);
+        Scheduler::rescheduleDaily($settings);
+        Scheduler::reschedulePdca($settings);
+
+        $jobId = Scheduler::queueStrategyJob('auto_setup');
+        if ($jobId > 0) {
+            wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
+        }
+
+        self::redirect($jobId > 0 ? '自動初期設定を完了し、AIサイト戦略の作成を開始しました。' : '自動初期設定を完了しました。');
     }
 
     public static function generateStrategy(): void

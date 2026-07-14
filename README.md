@@ -4,7 +4,7 @@ WordPress plugin for AI-assisted SEO strategy, article generation, affiliate fun
 
 ## Releases
 
-Push a semantic version tag matching the plugin header, for example `v0.5.4`. GitHub Actions validates the PHP source and publishes:
+Push a semantic version tag matching the plugin header, for example `v0.5.5`. GitHub Actions validates the PHP source and publishes:
 
 - `daily-seo-ai-publisher.zip`
 - `daily-seo-ai-publisher.zip.sha256`
