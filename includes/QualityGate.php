@@ -42,8 +42,10 @@ final class QualityGate
         $critical = is_array($audit['critical_issues'] ?? null) ? $audit['critical_issues'] : [];
         $unsupported = is_array($audit['unsupported_claims'] ?? null) ? $audit['unsupported_claims'] : [];
         $status = (string) ($settings['post_status'] ?? 'draft');
+        $profile = Settings::qualityProfile((string) ($settings['article_quality'] ?? 'high'));
+        $minimumScore = (int) ($profile['audit_score'] ?? 85);
 
-        if (!empty($payload['test_mode']) || $ymyl || $score < 80 || $critical !== [] || $unsupported !== []) {
+        if (!empty($payload['test_mode']) || $ymyl || $score < $minimumScore || $critical !== [] || $unsupported !== []) {
             $status = 'draft';
         }
 

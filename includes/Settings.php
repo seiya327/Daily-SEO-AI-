@@ -15,6 +15,7 @@ final class Settings
             'model_research' => 'gpt-5.6-terra',
             'model_audit' => 'gpt-5.6-luna',
             'model_refresh' => 'gpt-5.6-terra',
+            'article_quality' => 'high',
             'post_status' => 'draft',
             'daily_enabled' => false,
             'daily_time' => '09:00',
@@ -56,6 +57,51 @@ final class Settings
             'gpt-5.5' => 'GPT-5.5（改善候補）',
             'gpt-5.4-mini' => 'GPT-5.4 mini（低コスト）',
         ];
+    }
+
+    public static function qualityProfiles(): array
+    {
+        return [
+            'standard' => [
+                'label' => '標準',
+                'min_words' => 1800,
+                'audit_score' => 80,
+                'model_research' => 'gpt-5.6-terra',
+                'model_audit' => 'gpt-5.6-luna',
+                'instruction' => '読みやすさとSEO基本要件を満たす。一般論だけで終わらせず、見出しごとに要点、理由、具体例を入れる。',
+            ],
+            'high' => [
+                'label' => '高品質',
+                'min_words' => 3000,
+                'audit_score' => 85,
+                'model_research' => 'gpt-5.6-sol',
+                'model_audit' => 'gpt-5.6-terra',
+                'instruction' => '専門家が監修したような実用記事にする。手順、判断基準、比較、失敗例、注意点、読者が次に取る行動を必ず入れる。薄い要約、同じ意味の繰り返し、根拠のない断定は禁止。',
+            ],
+            'premium' => [
+                'label' => 'かなり高品質',
+                'min_words' => 4500,
+                'audit_score' => 90,
+                'model_research' => 'gpt-5.6-sol',
+                'model_audit' => 'gpt-5.6-sol',
+                'instruction' => '検索上位を狙う柱記事として作る。読者の前提知識、比較表に相当する観点、具体的な選び方、ケース別の結論、よくある誤解、内部リンク前提、CVへの自然な導線まで設計する。独自性のない文章、抽象論、水増しは禁止。',
+            ],
+        ];
+    }
+
+    public static function qualityProfile(?string $quality = null): array
+    {
+        $profiles = self::qualityProfiles();
+        $quality = $quality ?: (string) self::get()['article_quality'];
+        return $profiles[$quality] ?? $profiles['high'];
+    }
+
+    public static function qualityInstruction(?string $quality = null): string
+    {
+        $profile = self::qualityProfile($quality);
+        return 'Article quality preset: ' . (string) $profile['label'] . "\n"
+            . 'Minimum target length: about ' . (string) $profile['min_words'] . " Japanese characters or more when the topic can support it.\n"
+            . 'Required quality rule: ' . (string) $profile['instruction'];
     }
 
     public static function boot(): void
@@ -114,6 +160,8 @@ final class Settings
         }
 
         $models = array_keys(self::models());
+        $qualityProfiles = array_keys(self::qualityProfiles());
+        $next['article_quality'] = in_array(($input['article_quality'] ?? ''), $qualityProfiles, true) ? (string) $input['article_quality'] : 'high';
         $next['model_research'] = in_array(($input['model_research'] ?? ''), $models, true) ? (string) $input['model_research'] : 'gpt-5.6-terra';
         $next['model_audit'] = in_array(($input['model_audit'] ?? ''), $models, true) ? (string) $input['model_audit'] : 'gpt-5.6-luna';
         $next['model_refresh'] = in_array(($input['model_refresh'] ?? ''), $models, true) ? (string) $input['model_refresh'] : 'gpt-5.6-terra';

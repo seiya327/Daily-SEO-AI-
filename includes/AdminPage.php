@@ -13,6 +13,7 @@ final class AdminPage
         add_action('admin_post_dsap_run_now', [self::class, 'runNow']);
         add_action('admin_post_dsap_test_run', [self::class, 'testRun']);
         add_action('admin_post_dsap_save_api_key', [self::class, 'saveApiKey']);
+        add_action('admin_post_dsap_save_quality', [self::class, 'saveQuality']);
         add_action('admin_post_dsap_auto_setup', [self::class, 'autoSetup']);
         add_action('admin_post_dsap_reset_article_plan', [self::class, 'resetArticlePlan']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
@@ -111,6 +112,17 @@ final class AdminPage
                         <input type="hidden" name="action" value="dsap_save_api_key">
                         <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>">
                         <?php submit_button($hasKey ? 'APIキーを更新' : 'APIキーを保存', 'primary', 'submit', false); ?>
+                    </form>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>記事品質</h2>
+                    <p class="description">記事が薄い場合はここを上げてください。モデル、最低文字量、監査基準、記事への指示をまとめて調整します。</p>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <?php wp_nonce_field('dsap_save_quality'); ?>
+                        <input type="hidden" name="action" value="dsap_save_quality">
+                        <?php self::qualitySelect((string) $settings['article_quality']); ?>
+                        <?php submit_button('記事品質を保存', 'primary', 'submit', false); ?>
                     </form>
                 </div>
 
@@ -288,6 +300,7 @@ final class AdminPage
                             <h3>詳細設定</h3>
                             <table class="form-table" role="presentation">
                                 <tr><th><label for="dsap-key">OpenAI APIキー</label></th><td><input id="dsap-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>"><p class="description">保存済みキーは画面に再表示しません。</p></td></tr>
+                                <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
                                 <tr><th>リサーチ・執筆モデル</th><td><?php self::modelSelect('model_research', (string) $settings['model_research']); ?></td></tr>
                                 <tr><th>監査モデル</th><td><?php self::modelSelect('model_audit', (string) $settings['model_audit']); ?></td></tr>
                                 <tr><th>改善モデル</th><td><?php self::modelSelect('model_refresh', (string) $settings['model_refresh']); ?></td></tr>
@@ -376,6 +389,22 @@ final class AdminPage
         self::redirect('OpenAI APIキーを保存しました。次に自動初期設定を実行してください。');
     }
 
+    public static function saveQuality(): void
+    {
+        self::guard('dsap_save_quality');
+        $quality = sanitize_key((string) ($_POST['article_quality'] ?? 'high'));
+        $profile = Settings::qualityProfile($quality);
+        $settings = Settings::get();
+        $settings['article_quality'] = array_key_exists($quality, Settings::qualityProfiles()) ? $quality : 'high';
+        $settings['model_research'] = (string) $profile['model_research'];
+        $settings['model_audit'] = (string) $profile['model_audit'];
+        if (trim((string) $settings['global_instructions']) === '') {
+            $settings['global_instructions'] = (string) $profile['instruction'];
+        }
+        update_option(Settings::OPTION, $settings, false);
+        self::redirect('記事品質を「' . (string) $profile['label'] . '」に設定しました。次のテスト実行から反映されます。');
+    }
+
     public static function autoSetup(): void
     {
         self::guard('dsap_auto_setup');
@@ -415,8 +444,10 @@ final class AdminPage
         if (trim((string) $settings['affiliate_disclosure']) === '') {
             $settings['affiliate_disclosure'] = '本記事には広告・アフィリエイトリンクが含まれます。';
         }
-        $settings['model_research'] = (string) ($settings['model_research'] ?: 'gpt-5.6-terra');
-        $settings['model_audit'] = (string) ($settings['model_audit'] ?: 'gpt-5.6-luna');
+        $qualityProfile = Settings::qualityProfile((string) ($settings['article_quality'] ?? 'high'));
+        $settings['article_quality'] = (string) ($settings['article_quality'] ?: 'high');
+        $settings['model_research'] = (string) ($qualityProfile['model_research'] ?? ($settings['model_research'] ?: 'gpt-5.6-terra'));
+        $settings['model_audit'] = (string) ($qualityProfile['model_audit'] ?? ($settings['model_audit'] ?: 'gpt-5.6-luna'));
         $settings['model_refresh'] = (string) ($settings['model_refresh'] ?: 'gpt-5.6-terra');
         $settings['github_updates_enabled'] = true;
         $settings['refresh_min_impressions'] = max(100, (int) $settings['refresh_min_impressions']);
@@ -684,6 +715,15 @@ final class AdminPage
         echo '<select name="' . esc_attr(Settings::OPTION) . '[' . esc_attr($key) . ']">';
         foreach (Settings::models() as $value => $label) {
             echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+    }
+
+    private static function qualitySelect(string $current, string $name = 'article_quality'): void
+    {
+        echo '<select name="' . esc_attr($name) . '">';
+        foreach (Settings::qualityProfiles() as $value => $profile) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html((string) $profile['label']) . '（目安 ' . esc_html((string) $profile['min_words']) . '字以上 / 監査 ' . esc_html((string) $profile['audit_score']) . '点）</option>';
         }
         echo '</select>';
     }
