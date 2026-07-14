@@ -12,6 +12,7 @@ final class AdminPage
         add_action('admin_post_dsap_create_topic', [self::class, 'createTopic']);
         add_action('admin_post_dsap_run_now', [self::class, 'runNow']);
         add_action('admin_post_dsap_test_run', [self::class, 'testRun']);
+        add_action('admin_post_dsap_save_api_key', [self::class, 'saveApiKey']);
         add_action('admin_post_dsap_auto_setup', [self::class, 'autoSetup']);
         add_action('admin_post_dsap_reset_article_plan', [self::class, 'resetArticlePlan']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
@@ -78,17 +79,66 @@ final class AdminPage
                 <div class="dsap-hero">
                     <div>
                         <h2>最初だけここで設定する</h2>
-                        <p>APIキーを保存したあと、このボタンで記事生成に必要な初期設定とAIサイト戦略の作成をまとめて開始します。</p>
-                    </div>
-                    <div class="dsap-actions">
-                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
-                        <?php self::actionForm('dsap_reset_article_plan', '記事計画をリセット', 'delete'); ?>
+                        <p>APIキーを保存したあと、このタブの順番どおりに進めれば記事生成に必要な初期設定、Google連携、テスト実行まで完了できます。</p>
                     </div>
                 </div>
 
                 <div class="dsap-panel">
                     <h2>進捗</h2>
                     <?php self::autoSetupProgress($autoSetupState); ?>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>初期設定の順番</h2>
+                    <ol class="dsap-cycle">
+                        <li>OpenAI APIキーを保存する</li>
+                        <li>自動初期設定でサイト戦略と記事計画を作る</li>
+                        <li>Google Search Consoleを接続して改善データを取れるようにする</li>
+                        <li>最後にテスト実行で1記事を作成する</li>
+                        <li>下のパイプラインで完了またはエラーを確認する</li>
+                    </ol>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>1. OpenAI APIキー</h2>
+                    <?php if ($hasKey) : ?>
+                        <p><strong>設定済みです。</strong> 変更したい場合だけ新しいキーを保存してください。</p>
+                    <?php else : ?>
+                        <p class="description">最初にAPIキーを保存してください。保存済みキーは画面に再表示しません。</p>
+                    <?php endif; ?>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <?php wp_nonce_field('dsap_save_api_key'); ?>
+                        <input type="hidden" name="action" value="dsap_save_api_key">
+                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>">
+                        <?php submit_button($hasKey ? 'APIキーを更新' : 'APIキーを保存', 'primary', 'submit', false); ?>
+                    </form>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>2. 自動設定と記事計画</h2>
+                    <p class="description">設定を直したあとに押すと、古い記事計画をリセットして新しい戦略を作り直します。</p>
+                    <div class="dsap-actions">
+                        <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
+                        <?php self::actionForm('dsap_reset_article_plan', '記事計画をリセット', 'delete'); ?>
+                    </div>
+                </div>
+
+                <div class="dsap-panel dsap-setup-panel">
+                    <h2>3. Google連携</h2>
+                    <?php self::gscSetupWizard($settings, $gscConnected, is_array($gscSites) ? $gscSites : [], is_array($lastSync) ? $lastSync : []); ?>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>4. 最後にテスト実行</h2>
+                    <p class="description">ここで1記事のテストジョブを作成します。下書きまたは設定した投稿状態で記事ができれば初期設定は成功です。</p>
+                    <div class="dsap-actions">
+                        <?php self::actionForm('dsap_test_run', 'テスト実行', 'primary'); ?>
+                    </div>
+                </div>
+
+                <div class="dsap-panel">
+                    <h2>5. テスト結果とパイプライン</h2>
+                    <?php self::jobsTable(array_slice($jobs, 0, 10)); ?>
                 </div>
 
                 <div class="dsap-panel">
@@ -136,7 +186,6 @@ final class AdminPage
                     </div>
                     <div class="dsap-actions">
                         <?php self::actionForm('dsap_generate_strategy', 'AIで戦略を作る', 'primary'); ?>
-                        <?php self::actionForm('dsap_test_run', 'テスト実行', 'secondary'); ?>
                         <?php self::actionForm('dsap_run_now', '今日の分を実行', 'secondary'); ?>
                     </div>
                 </div>
@@ -310,6 +359,21 @@ final class AdminPage
             wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
         }
         self::redirect($jobId > 0 ? 'テストジョブを開始しました。進捗欄を更新して確認できます。' : 'テスト対象の記事計画がありません。');
+    }
+
+    public static function saveApiKey(): void
+    {
+        self::guard('dsap_save_api_key');
+        $input = is_array($_POST[Settings::OPTION] ?? null) ? wp_unslash($_POST[Settings::OPTION]) : [];
+        $apiKey = trim((string) ($input['openai_api_key'] ?? ''));
+        if ($apiKey === '') {
+            self::redirect(Settings::apiKey() !== '' ? 'APIキーは設定済みです。変更する場合だけ新しいキーを入力してください。' : 'OpenAI APIキーを入力してください。');
+        }
+
+        $settings = Settings::get();
+        $settings['openai_api_key'] = $apiKey;
+        update_option(Settings::OPTION, $settings, false);
+        self::redirect('OpenAI APIキーを保存しました。次に自動初期設定を実行してください。');
     }
 
     public static function autoSetup(): void
@@ -646,6 +710,10 @@ final class AdminPage
 
     private static function gscSetupWizard(array $settings, bool $connected, array $sites, array $lastSync): void
     {
+        static $instance = 0;
+        $instance++;
+        $redirectId = 'dsap-redirect-uri-' . (string) $instance;
+        $copyId = 'dsap-copy-redirect-' . (string) $instance;
         $hasCredentials = (string) $settings['gsc_client_id'] !== '' && (string) $settings['gsc_client_secret'] !== '';
         $hasProperty = (string) $settings['gsc_site_url'] !== '';
         $hasSync = !empty($lastSync['synced_at']) && empty($lastSync['error']);
@@ -667,7 +735,7 @@ final class AdminPage
             echo '<div class="dsap-setup-step"><h3>1. Google CloudでOAuthを作る</h3>';
             echo '<p><a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com">Search Console APIを有効化</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/auth/overview">同意画面を設定</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/credentials">OAuthクライアントを作成</a></p>';
             echo '<p>種類は「ウェブアプリケーション」。承認済みリダイレクトURIには次を登録します。</p>';
-            echo '<div class="dsap-copy-row"><code id="dsap-redirect-uri">' . esc_html(GoogleOAuth::redirectUri()) . '</code><button type="button" class="button" id="dsap-copy-redirect">コピー</button></div>';
+            echo '<div class="dsap-copy-row"><code id="' . esc_attr($redirectId) . '">' . esc_html(GoogleOAuth::redirectUri()) . '</code><button type="button" class="button" id="' . esc_attr($copyId) . '">コピー</button></div>';
             echo '<form method="post" enctype="multipart/form-data" action="' . esc_url(admin_url('admin-post.php')) . '">';
             wp_nonce_field('dsap_import_google_oauth');
             echo '<input type="hidden" name="action" value="dsap_import_google_oauth"><label><strong>GoogleからダウンロードしたJSON:</strong> <input type="file" name="google_oauth_json" accept="application/json,.json" required></label> ';
@@ -695,7 +763,7 @@ final class AdminPage
         } else {
             echo '<div class="dsap-setup-complete"><strong>セットアップ完了</strong><span>Search Console取得と改善判定が自動実行されます。</span></div>';
         }
-        echo '<script>document.addEventListener("DOMContentLoaded",function(){var b=document.getElementById("dsap-copy-redirect"),c=document.getElementById("dsap-redirect-uri");if(b&&c){b.addEventListener("click",function(){navigator.clipboard.writeText(c.textContent||"");b.textContent="コピー済み";});}});</script>';
+        echo '<script>document.addEventListener("DOMContentLoaded",function(){var b=document.getElementById("' . esc_js($copyId) . '"),c=document.getElementById("' . esc_js($redirectId) . '");if(b&&c){b.addEventListener("click",function(){navigator.clipboard.writeText(c.textContent||"");b.textContent="コピー済み";});}});</script>';
     }
 
     private static function clearArticlePlan(): void
