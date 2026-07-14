@@ -10,7 +10,12 @@ final class PromptBuilder
     {
         $snapshot = json_decode((string) ($job['instruction_snapshot'] ?? ''), true);
         $snapshot = is_array($snapshot) ? $snapshot : [];
-        return "Create a practical Japanese SEO content strategy. Build topic clusters that move readers from informational attraction articles to conversion articles. Return 12 to 30 article plans. Every attraction article must target a conversion article by keyword; every conversion article must lead to the configured affiliate destination. Do not promise rankings.\n"
+        $keywordStrategy = (string) ($snapshot['keyword_strategy'] ?? 'longtail');
+        return "Create a practical Japanese SEO content strategy focused on new organic entry points, not generic head terms. Build topic clusters that move readers from informational attraction articles to conversion articles. Return 18 to 30 article plans. Every attraction article must target a conversion article by keyword; every conversion article must lead to the configured affiliate destination. Do not promise rankings.\n"
+            . "Keyword strategy: {$keywordStrategy}\n"
+            . "Long-tail requirements: at least 70% of article keywords must be specific long-tail queries with clear situation, audience, problem, comparison, cost, failure, timing, alternative, or objection modifiers. Avoid obvious generic keywords unless they are CV articles.\n"
+            . "Unexpected entry requirements: include angles from adjacent pains, mistaken searches, competitor alternatives, before/after situations, beginner mistakes, hidden costs, local or job-role context, tool/process comparisons, and 'I tried X but failed' style intent. These should reveal demand that direct product keywords miss.\n"
+            . "Brief requirements: every brief must explain the unique angle, why this keyword can attract new users, the reader's hidden pain, and the natural internal link or CV path. Do not output vague briefs like 'explain benefits' or 'introduce service'.\n"
             . "Site theme: " . (string) ($snapshot['site_theme'] ?? '') . "\n"
             . "Target audience: " . (string) ($snapshot['target_audience'] ?? '') . "\n"
             . "Conversion goal: " . (string) ($snapshot['conversion_goal'] ?? '') . "\n"
@@ -22,7 +27,7 @@ final class PromptBuilder
 
     public static function research(array $topic, array $job): string
     {
-        return self::base($job) . "\nTask: Research one SEO article topic.\nKeyword: " . (string) $topic['keyword'] . "\nArticle type: " . (string) ($topic['article_type'] ?? 'attraction') . "\nCluster: " . (string) ($topic['cluster_name'] ?? '');
+        return self::base($job) . "\nTask: Research one SEO article topic. Preserve the long-tail intent. Identify the specific reader situation, hidden pain, adjacent search behavior, and why this query is a non-obvious entry point. Do not broaden the topic back into a generic head term.\nKeyword: " . (string) $topic['keyword'] . "\nArticle type: " . (string) ($topic['article_type'] ?? 'attraction') . "\nCluster: " . (string) ($topic['cluster_name'] ?? '');
     }
 
     public static function article(array $payload, array $job): string

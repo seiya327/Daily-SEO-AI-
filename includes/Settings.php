@@ -16,6 +16,7 @@ final class Settings
             'model_audit' => 'gpt-5.6-luna',
             'model_refresh' => 'gpt-5.6-terra',
             'article_quality' => 'high',
+            'keyword_strategy' => 'longtail',
             'post_status' => 'draft',
             'daily_enabled' => false,
             'daily_time' => '09:00',
@@ -104,6 +105,15 @@ final class Settings
             . 'Required quality rule: ' . (string) $profile['instruction'];
     }
 
+    public static function keywordStrategies(): array
+    {
+        return [
+            'balanced' => 'バランス型',
+            'longtail' => 'ロングテール重視',
+            'unexpected' => '意外な流入重視',
+        ];
+    }
+
     public static function boot(): void
     {
         add_action('admin_init', [self::class, 'register']);
@@ -162,6 +172,8 @@ final class Settings
         $models = array_keys(self::models());
         $qualityProfiles = array_keys(self::qualityProfiles());
         $next['article_quality'] = in_array(($input['article_quality'] ?? ''), $qualityProfiles, true) ? (string) $input['article_quality'] : 'high';
+        $keywordStrategies = array_keys(self::keywordStrategies());
+        $next['keyword_strategy'] = in_array(($input['keyword_strategy'] ?? ''), $keywordStrategies, true) ? (string) $input['keyword_strategy'] : 'longtail';
         $next['model_research'] = in_array(($input['model_research'] ?? ''), $models, true) ? (string) $input['model_research'] : 'gpt-5.6-terra';
         $next['model_audit'] = in_array(($input['model_audit'] ?? ''), $models, true) ? (string) $input['model_audit'] : 'gpt-5.6-luna';
         $next['model_refresh'] = in_array(($input['model_refresh'] ?? ''), $models, true) ? (string) $input['model_refresh'] : 'gpt-5.6-terra';

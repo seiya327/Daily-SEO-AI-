@@ -58,6 +58,7 @@ final class JobRepository
             'conversion_goal' => $settings['conversion_goal'],
             'affiliate_url' => $settings['affiliate_url'],
             'attraction_ratio' => $settings['attraction_ratio'],
+            'keyword_strategy' => $settings['keyword_strategy'],
             'strategy_instructions' => $settings['strategy_instructions'],
             'global' => $settings['global_instructions'],
         ];

@@ -14,6 +14,7 @@ final class AdminPage
         add_action('admin_post_dsap_test_run', [self::class, 'testRun']);
         add_action('admin_post_dsap_save_api_key', [self::class, 'saveApiKey']);
         add_action('admin_post_dsap_save_quality', [self::class, 'saveQuality']);
+        add_action('admin_post_dsap_save_keyword_strategy', [self::class, 'saveKeywordStrategy']);
         add_action('admin_post_dsap_auto_setup', [self::class, 'autoSetup']);
         add_action('admin_post_dsap_reset_article_plan', [self::class, 'resetArticlePlan']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
@@ -129,6 +130,12 @@ final class AdminPage
                 <div class="dsap-panel">
                     <h2>2. 自動設定と記事計画</h2>
                     <p class="description">設定を直したあとに押すと、古い記事計画をリセットして新しい戦略を作り直します。</p>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="dsap-inline-setting">
+                        <?php wp_nonce_field('dsap_save_keyword_strategy'); ?>
+                        <input type="hidden" name="action" value="dsap_save_keyword_strategy">
+                        <label>キーワード戦略 <?php self::keywordStrategySelect((string) $settings['keyword_strategy']); ?></label>
+                        <?php submit_button('戦略設定を保存', 'secondary', 'submit', false); ?>
+                    </form>
                     <div class="dsap-actions">
                         <?php self::actionForm('dsap_auto_setup', '自動初期設定を実行', 'primary'); ?>
                         <?php self::actionForm('dsap_reset_article_plan', '記事計画をリセット', 'delete'); ?>
@@ -307,6 +314,7 @@ final class AdminPage
                                 <tr><th><label for="dsap-anchor-default">CTA文言</label></th><td><input id="dsap-anchor-default" name="<?php echo esc_attr(Settings::OPTION); ?>[affiliate_anchor]" value="<?php echo esc_attr((string) $settings['affiliate_anchor']); ?>" class="regular-text"></td></tr>
                                 <tr><th><label for="dsap-disclosure">広告表記</label></th><td><input id="dsap-disclosure" name="<?php echo esc_attr(Settings::OPTION); ?>[affiliate_disclosure]" value="<?php echo esc_attr((string) $settings['affiliate_disclosure']); ?>" class="large-text"></td></tr>
                                 <tr><th><label for="dsap-ratio">集客記事の割合</label></th><td><input id="dsap-ratio" type="number" min="0" max="100" step="10" name="<?php echo esc_attr(Settings::OPTION); ?>[attraction_ratio]" value="<?php echo esc_attr((string) $settings['attraction_ratio']); ?>"> %</td></tr>
+                                <tr><th>キーワード戦略</th><td><?php self::keywordStrategySelect((string) $settings['keyword_strategy'], Settings::OPTION . '[keyword_strategy]'); ?></td></tr>
                                 <tr><th><label for="dsap-strategy-instructions">戦略への追加指示</label></th><td><textarea id="dsap-strategy-instructions" name="<?php echo esc_attr(Settings::OPTION); ?>[strategy_instructions]" rows="4" class="large-text"><?php echo esc_textarea((string) $settings['strategy_instructions']); ?></textarea></td></tr>
                                 <tr><th><label for="dsap-global">全記事への指示</label></th><td><textarea id="dsap-global" name="<?php echo esc_attr(Settings::OPTION); ?>[global_instructions]" rows="5" class="large-text"><?php echo esc_textarea((string) $settings['global_instructions']); ?></textarea></td></tr>
                                 <tr><th><label for="dsap-gsc-client-id">GoogleクライアントID</label></th><td><input id="dsap-gsc-client-id" name="<?php echo esc_attr(Settings::OPTION); ?>[gsc_client_id]" value="<?php echo esc_attr((string) $settings['gsc_client_id']); ?>" class="large-text"></td></tr>
@@ -405,6 +413,17 @@ final class AdminPage
         self::redirect('記事品質を「' . (string) $profile['label'] . '」に設定しました。次のテスト実行から反映されます。');
     }
 
+    public static function saveKeywordStrategy(): void
+    {
+        self::guard('dsap_save_keyword_strategy');
+        $strategy = sanitize_key((string) ($_POST['keyword_strategy'] ?? 'longtail'));
+        $strategies = Settings::keywordStrategies();
+        $settings = Settings::get();
+        $settings['keyword_strategy'] = array_key_exists($strategy, $strategies) ? $strategy : 'longtail';
+        update_option(Settings::OPTION, $settings, false);
+        self::redirect('キーワード戦略を「' . (string) $strategies[$settings['keyword_strategy']] . '」に設定しました。次に記事計画をリセットして自動初期設定を実行してください。');
+    }
+
     public static function autoSetup(): void
     {
         self::guard('dsap_auto_setup');
@@ -429,6 +448,9 @@ final class AdminPage
         $settings['max_daily_new_articles'] = max(1, min(3, (int) ($settings['max_daily_new_articles'] ?: 1)));
         $settings['post_status'] = in_array((string) $settings['post_status'], ['draft', 'pending', 'publish'], true) ? $settings['post_status'] : 'draft';
         $settings['attraction_ratio'] = (int) ($settings['attraction_ratio'] ?: 70);
+        if (!array_key_exists((string) ($settings['keyword_strategy'] ?? ''), Settings::keywordStrategies())) {
+            $settings['keyword_strategy'] = 'longtail';
+        }
         $settings['site_theme'] = $siteTheme;
         if (trim((string) $settings['target_audience']) === '') {
             $settings['target_audience'] = 'このサイトのテーマに関心があり、比較・検討しながら信頼できる情報を探している見込み客。';
@@ -724,6 +746,15 @@ final class AdminPage
         echo '<select name="' . esc_attr($name) . '">';
         foreach (Settings::qualityProfiles() as $value => $profile) {
             echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html((string) $profile['label']) . '（目安 ' . esc_html((string) $profile['min_words']) . '字以上 / 監査 ' . esc_html((string) $profile['audit_score']) . '点）</option>';
+        }
+        echo '</select>';
+    }
+
+    private static function keywordStrategySelect(string $current, string $name = 'keyword_strategy'): void
+    {
+        echo '<select name="' . esc_attr($name) . '">';
+        foreach (Settings::keywordStrategies() as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
     }

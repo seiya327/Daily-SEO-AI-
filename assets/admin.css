@@ -60,5 +60,7 @@
 .dsap-advanced summary, .dsap-panel summary { cursor: pointer; font-weight: 600; }
 .dsap-advanced .form-table { margin-top: 12px; }
 .dsap-settings-actions { margin-top: 12px; }
+.dsap-inline-setting { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0 14px; }
+.dsap-inline-setting label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 @media (max-width: 960px) { .dsap-grid, .dsap-stats { grid-template-columns: 1fr 1fr; } .dsap-hero { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 600px) { .dsap-grid, .dsap-stats, .dsap-setup-progress, .dsap-setup-steps { grid-template-columns: 1fr; } .dsap-progress { width: 100px; } .dsap-copy-row { align-items: flex-start; flex-direction: column; } .dsap-compact-options { align-items: flex-start; flex-direction: column; } }
