@@ -340,6 +340,12 @@ final class AdminPage
                         <?php self::actionForm('dsap_check_github_updates', 'GitHub更新を確認', 'secondary'); ?>
                         <?php self::actionForm('dsap_install_github_update', 'GitHubから今すぐ更新', 'primary'); ?>
                     </div>
+                    <?php $updatePermissionError = self::updatePermissionError(); ?>
+                    <?php if ($updatePermissionError !== '') : ?>
+                        <p class="description"><strong>更新実行不可:</strong> <?php echo esc_html($updatePermissionError); ?></p>
+                    <?php else : ?>
+                        <p class="description">「今すぐ更新」はWordPress標準の更新処理を直接開始します。サーバーがFTP/SSH認証を必要とする場合だけ、接続情報の入力画面が表示されます。</p>
+                    <?php endif; ?>
                 </div>
             </section>
         </div>
@@ -689,7 +695,7 @@ final class AdminPage
         wp_clean_plugins_cache(true);
         wp_update_plugins();
         $message = version_compare((string) $release['version'], DSAP_VERSION, '>')
-            ? '新しいバージョン ' . $release['version'] . ' を検出しました。WordPressのプラグイン更新画面から更新できます。'
+            ? '新しいバージョン ' . $release['version'] . ' を検出しました。続けて「GitHubから今すぐ更新」を押してください。'
             : '最新版です。現在: ' . DSAP_VERSION;
         self::redirect($message);
     }
@@ -697,6 +703,11 @@ final class AdminPage
     public static function installGitHubUpdate(): void
     {
         self::guard('dsap_install_github_update');
+        $permissionError = self::updatePermissionError();
+        if ($permissionError !== '') {
+            self::redirect($permissionError);
+        }
+
         delete_transient(GitHubUpdater::CACHE_KEY);
         $release = (new GitHubUpdater())->release();
         if (is_wp_error($release)) {
@@ -709,27 +720,22 @@ final class AdminPage
         wp_clean_plugins_cache(true);
         wp_update_plugins();
 
-        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-        require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        require_once ABSPATH . 'wp-admin/includes/misc.php';
-
-        $skin = new \Automatic_Upgrader_Skin();
-        $upgrader = new \Plugin_Upgrader($skin);
-        ob_start();
-        $result = $upgrader->upgrade(plugin_basename(DSAP_FILE));
-        ob_end_clean();
-
-        if (is_wp_error($result)) {
-            self::redirect($result->get_error_message());
-        }
-        if ($result !== true) {
-            self::redirect('GitHub更新を実行できませんでした。WordPressのファイル権限、またはGitHub更新情報を確認してください。');
+        $plugin = plugin_basename(DSAP_FILE);
+        $updates = get_site_transient('update_plugins');
+        if (!is_object($updates) || empty($updates->response[$plugin])) {
+            self::redirect('GitHub更新情報をWordPressへ登録できませんでした。「GitHub更新を確認」を押してから、もう一度実行してください。');
         }
 
-        wp_clean_plugins_cache(true);
-        delete_transient(GitHubUpdater::CACHE_KEY);
-        self::redirect('GitHubからバージョン ' . (string) $release['version'] . ' へ更新しました。');
+        $updateUrl = add_query_arg(
+            [
+                'action' => 'upgrade-plugin',
+                'plugin' => $plugin,
+                '_wpnonce' => wp_create_nonce('upgrade-plugin_' . $plugin),
+            ],
+            self_admin_url('update.php')
+        );
+        wp_safe_redirect($updateUrl);
+        exit;
     }
 
     private static function modelSelect(string $key, string $current): void
@@ -1132,6 +1138,20 @@ final class AdminPage
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('You do not have permission.', 'daily-seo-ai-publisher'));
         }
+    }
+
+    private static function updatePermissionError(): string
+    {
+        if (!wp_is_file_mod_allowed('capability_update_core')) {
+            return 'WordPressまたはサーバーの設定でプラグインファイルの変更が禁止されています。wp-config.php の DISALLOW_FILE_MODS、またはホスティング側の更新制限を確認してください。';
+        }
+        if (is_multisite() && !is_super_admin()) {
+            return 'マルチサイトではネットワーク管理者だけがプラグインを更新できます。ネットワーク管理者でログインしてください。';
+        }
+        if (!current_user_can('update_plugins')) {
+            return '現在のユーザーに update_plugins 権限がありません。WordPress管理者でログインするか、ユーザー権限を確認してください。';
+        }
+        return '';
     }
 
     private static function redirect(string $notice): void
