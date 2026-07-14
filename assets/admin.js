@@ -33,5 +33,21 @@
     if (initial) {
       activateTab(initial);
     }
+
+    var wrap = document.querySelector('.dsap-wrap[data-dsap-active-jobs="1"]');
+    if (wrap) {
+      var dirty = false;
+      document.querySelectorAll('.dsap-wrap form').forEach(function (form) {
+        form.addEventListener('input', function () { dirty = true; });
+        form.addEventListener('change', function () { dirty = true; });
+      });
+      window.setInterval(function () {
+        var hash = window.location.hash || '#dsap-initial-setup';
+        var progressTab = hash === '#dsap-initial-setup' || hash === '#dsap-dashboard';
+        if (progressTab && !dirty && !document.hidden) {
+          window.location.reload();
+        }
+      }, 15000);
+    }
   });
 })();

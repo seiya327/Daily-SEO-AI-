@@ -137,59 +137,131 @@ final class Pipeline
         $repo = new JobRepository();
         $settings = Settings::get();
         $siteContext = SiteContext::forStrategy();
+        $payload = $this->payload($job);
+        $plan = is_array($payload['strategy'] ?? null) ? $payload['strategy'] : [];
+        $diagnostics = is_array($payload['strategy_diagnostics'] ?? null) ? $payload['strategy_diagnostics'] : [];
+        $sources = is_array($payload['strategy_sources'] ?? null) ? $payload['strategy_sources'] : [];
+        $usage = is_array($payload['usage'] ?? null) ? $payload['usage'] : [];
+        $attempts = max(
+            0,
+            (int) ($payload['strategy_generation_attempts'] ?? 0),
+            isset($usage['strategy_repair']) ? 2 : ($plan !== [] ? 1 : 0)
+        );
+        $state = is_array($payload['strategy_generation'] ?? null) ? $payload['strategy_generation'] : [];
+
+        if ($plan !== [] && !empty($diagnostics['passed'])) {
+            $this->completeStrategy($job, $settings, $plan, $diagnostics, $sources, $usage, max(1, $attempts), $payload);
+            return;
+        }
+        if ($plan !== [] && $attempts >= 2) {
+            $message = implode(' / ', array_slice(is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : ['戦略品質基準を満たせませんでした。'], 0, 5));
+            $repo->fail((int) $job['id'], $message, true);
+            return;
+        }
+
+        $phase = $plan !== [] && $attempts >= 1 ? 'repair' : 'initial';
+        $responseId = (string) (($state['phase'] ?? '') === $phase ? ($state['response_id'] ?? '') : '');
+        $prompt = $phase === 'repair'
+            ? PromptBuilder::strategyRepair($job, $plan, $diagnostics, $siteContext)
+            : PromptBuilder::strategy($job, $siteContext);
         $result = $this->client->respond(
             'strategy_v1',
             Contracts::schema('strategy_v1'),
-            PromptBuilder::strategy($job, $siteContext),
+            $prompt,
             true,
-            (string) $settings['model_research']
+            (string) $settings['model_research'],
+            true,
+            $responseId
         );
         if (is_wp_error($result)) {
+            if ($result->get_error_code() === 'dsap_openai_response_missing') {
+                $state['response_id'] = '';
+                $state['status'] = 'expired';
+                $state['updated_at'] = current_time('mysql');
+                $payload['strategy_generation'] = $state;
+                $repo->savePayload((int) $job['id'], $payload);
+            }
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
+            return;
+        }
+
+        if (!empty($result['pending'])) {
+            $state = [
+                'phase' => $phase,
+                'response_id' => sanitize_text_field((string) ($result['response_id'] ?? '')),
+                'status' => sanitize_key((string) ($result['status'] ?? 'queued')),
+                'poll_count' => max(0, (int) ($state['poll_count'] ?? 0)) + 1,
+                'started_at' => (string) ($state['started_at'] ?? current_time('mysql')),
+                'updated_at' => current_time('mysql'),
+            ];
+            $payload['strategy_generation'] = $state;
+            $payload['strategy_generation_attempts'] = $attempts;
+            $repo->savePayload((int) $job['id'], $payload);
+            $repo->advance((int) $job['id'], 'strategy');
+            Scheduler::scheduleNextStage((int) $job['id'], 15);
             return;
         }
 
         $plan = is_array($result['data'] ?? null) ? $result['data'] : [];
         $diagnostics = StrategyGate::inspect($plan, $settings, $siteContext);
-        $usage = ['strategy' => $result['usage'] ?? []];
-        $sources = is_array($result['sources'] ?? null) ? $result['sources'] : [];
-        $attempts = 1;
+        $attempts = $phase === 'repair' ? 2 : 1;
+        $usage[$phase === 'repair' ? 'strategy_repair' : 'strategy'] = $result['usage'] ?? [];
+        $sources = array_values(array_unique(array_merge($sources, is_array($result['sources'] ?? null) ? $result['sources'] : [])));
+        $payload['strategy'] = $plan;
+        $payload['strategy_diagnostics'] = $diagnostics;
+        $payload['strategy_sources'] = $sources;
+        $payload['strategy_generation_attempts'] = $attempts;
+        $payload['usage'] = $usage;
+        $payload['strategy_generation'] = [
+            'phase' => $phase,
+            'response_id' => '',
+            'status' => 'completed',
+            'poll_count' => max(0, (int) ($state['poll_count'] ?? 0)),
+            'started_at' => (string) ($state['started_at'] ?? current_time('mysql')),
+            'updated_at' => current_time('mysql'),
+        ];
+        $repo->savePayload((int) $job['id'], $payload);
+
         if (empty($diagnostics['passed'])) {
-            $repair = $this->client->respond(
-                'strategy_v1',
-                Contracts::schema('strategy_v1'),
-                PromptBuilder::strategyRepair($job, $plan, $diagnostics, $siteContext),
-                true,
-                (string) $settings['model_research']
-            );
-            if (is_wp_error($repair)) {
-                $repo->fail((int) $job['id'], $repair->get_error_message(), $this->isPermanent($repair));
+            if ($attempts < 2) {
+                $payload['strategy_generation'] = [
+                    'phase' => 'repair',
+                    'response_id' => '',
+                    'status' => 'queued',
+                    'poll_count' => 0,
+                    'started_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql'),
+                ];
+                $repo->savePayload((int) $job['id'], $payload);
+                $repo->advance((int) $job['id'], 'strategy');
+                Scheduler::scheduleNextStage((int) $job['id']);
                 return;
             }
-            $attempts = 2;
-            $plan = is_array($repair['data'] ?? null) ? $repair['data'] : [];
-            $diagnostics = StrategyGate::inspect($plan, $settings, $siteContext);
-            $usage['strategy_repair'] = $repair['usage'] ?? [];
-            $sources = array_values(array_unique(array_merge($sources, is_array($repair['sources'] ?? null) ? $repair['sources'] : [])));
-        }
-        if (empty($diagnostics['passed'])) {
             $message = implode(' / ', array_slice(is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : ['戦略品質基準を満たせませんでした。'], 0, 5));
-            $repo->savePayload((int) $job['id'], ['strategy' => $plan, 'strategy_diagnostics' => $diagnostics, 'usage' => $usage]);
             $repo->fail((int) $job['id'], $message, true);
             return;
         }
 
+        $this->completeStrategy($job, $settings, $plan, $diagnostics, $sources, $usage, $attempts, $payload);
+    }
+
+    private function completeStrategy(array $job, array $settings, array $plan, array $diagnostics, array $sources, array $usage, int $attempts, array $payload): void
+    {
         $articles = is_array($plan['articles'] ?? null) ? $plan['articles'] : [];
         $topicRepo = new TopicRepository();
         foreach ($articles as $article) {
             if (!is_array($article) || empty($article['keyword'])) {
                 continue;
             }
+            $keyword = sanitize_text_field((string) $article['keyword']);
+            if ($keyword === '' || $topicRepo->existsByKeyword($keyword)) {
+                continue;
+            }
             $articleType = ($article['article_type'] ?? '') === 'cv' ? 'cv' : 'attraction';
             $configuredAffiliate = esc_url_raw((string) $settings['affiliate_url']);
             $targetUrl = $articleType === 'cv' ? $configuredAffiliate : '';
             $topicRepo->create(
-                sanitize_text_field((string) $article['keyword']),
+                $keyword,
                 self::topicInstructions($article),
                 $articleType,
                 sanitize_text_field((string) ($article['cluster_name'] ?? '')),
@@ -208,7 +280,17 @@ final class Pipeline
             'research_sources' => $sources,
             'generation_attempts' => $attempts,
         ], false);
-        $repo->savePayload((int) $job['id'], ['strategy' => $plan, 'strategy_diagnostics' => $diagnostics, 'strategy_sources' => $sources, 'usage' => $usage]);
+        $payload['strategy'] = $plan;
+        $payload['strategy_diagnostics'] = $diagnostics;
+        $payload['strategy_sources'] = $sources;
+        $payload['strategy_generation_attempts'] = $attempts;
+        $payload['usage'] = $usage;
+        $payload['strategy_generation'] = array_merge(
+            is_array($payload['strategy_generation'] ?? null) ? $payload['strategy_generation'] : [],
+            ['response_id' => '', 'status' => 'completed', 'updated_at' => current_time('mysql')]
+        );
+        $repo = new JobRepository();
+        $repo->savePayload((int) $job['id'], $payload);
         $repo->complete((int) $job['id'], 0);
     }
 
@@ -386,7 +468,7 @@ final class Pipeline
 
     private function isPermanent(\WP_Error $error): bool
     {
-        return !in_array($error->get_error_code(), ['dsap_openai_network', 'dsap_openai_retryable'], true);
+        return !in_array($error->get_error_code(), ['dsap_openai_network', 'dsap_openai_retryable', 'dsap_openai_response_missing'], true);
     }
 
     private static function topicInstructions(array $article): string

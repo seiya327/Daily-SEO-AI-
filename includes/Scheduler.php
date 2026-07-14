@@ -170,9 +170,9 @@ final class Scheduler
         }
     }
 
-    public static function scheduleNextStage(int $jobId): void
+    public static function scheduleNextStage(int $jobId, int $delay = 5): void
     {
-        wp_schedule_single_event(time() + 5, self::HOOK_RETRY_JOB, [$jobId]);
+        wp_schedule_single_event(time() + max(1, min(300, $delay)), self::HOOK_RETRY_JOB, [$jobId]);
     }
 
     public static function queueStrategyJob(string $trigger): int

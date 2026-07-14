@@ -13,8 +13,19 @@ final class OpenAiClient implements AiClientInterface
         $this->apiKey = $apiKey;
     }
 
-    public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = ''): array|\WP_Error
+    public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = '', bool $background = false, string $responseId = ''): array|\WP_Error
     {
+        if ($responseId !== '') {
+            if (preg_match('/^resp_[A-Za-z0-9_-]+$/', $responseId) !== 1) {
+                return new \WP_Error('dsap_openai_response_id', '保存されたOpenAIレスポンスIDが不正です。');
+            }
+            $response = wp_remote_get('https://api.openai.com/v1/responses/' . rawurlencode($responseId), [
+                'timeout' => 30,
+                'headers' => $this->headers(),
+            ]);
+            return $this->parseResponse($response, true, true);
+        }
+
         $body = [
             'model' => $model !== '' ? $model : 'gpt-5.6-terra',
             'reasoning' => [
@@ -47,15 +58,22 @@ final class OpenAiClient implements AiClientInterface
             ];
         }
 
+        if ($background) {
+            $body['background'] = true;
+            $body['store'] = true;
+        }
+
         $response = wp_remote_post('https://api.openai.com/v1/responses', [
-            'timeout' => 120,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ],
+            'timeout' => $background ? 45 : 120,
+            'headers' => $this->headers(),
             'body' => wp_json_encode($body),
         ]);
 
+        return $this->parseResponse($response, $background, false);
+    }
+
+    private function parseResponse($response, bool $background, bool $retrieval): array|\WP_Error
+    {
         if (is_wp_error($response)) {
             return new \WP_Error('dsap_openai_network', $response->get_error_message());
         }
@@ -65,11 +83,31 @@ final class OpenAiClient implements AiClientInterface
         $json = json_decode($raw, true);
         if ($code < 200 || $code >= 300) {
             $message = is_array($json) && isset($json['error']['message']) ? (string) $json['error']['message'] : 'OpenAI request failed.';
+            if ($retrieval && $code === 404) {
+                return new \WP_Error('dsap_openai_response_missing', 'OpenAIのバックグラウンド結果を取得できませんでした。保存期間を過ぎた可能性があるため、新しい生成を予約します。', ['status' => $code]);
+            }
             return new \WP_Error(in_array($code, [408, 409, 429, 500, 502, 503, 504], true) ? 'dsap_openai_retryable' : 'dsap_openai_permanent', $message, ['status' => $code]);
         }
 
         if (!is_array($json)) {
             return new \WP_Error('dsap_openai_bad_json', 'OpenAI returned invalid JSON.');
+        }
+
+        $status = sanitize_key((string) ($json['status'] ?? ''));
+        $responseId = sanitize_text_field((string) ($json['id'] ?? ''));
+        if ($background && in_array($status, ['queued', 'in_progress'], true)) {
+            if (preg_match('/^resp_[A-Za-z0-9_-]+$/', $responseId) !== 1) {
+                return new \WP_Error('dsap_openai_response_id', 'OpenAIが有効なバックグラウンドレスポンスIDを返しませんでした。');
+            }
+            return [
+                'pending' => true,
+                'response_id' => $responseId,
+                'status' => $status,
+            ];
+        }
+        if ($background && $status !== '' && $status !== 'completed') {
+            $message = (string) ($json['error']['message'] ?? $json['incomplete_details']['reason'] ?? $status);
+            return new \WP_Error('dsap_openai_background_failed', 'OpenAIバックグラウンド処理が完了しませんでした: ' . $message, ['status' => $status]);
         }
 
         $text = $this->extractOutputText($json);
@@ -86,6 +124,16 @@ final class OpenAiClient implements AiClientInterface
             'data' => $data,
             'sources' => $this->extractSources($json),
             'usage' => is_array($json['usage'] ?? null) ? $json['usage'] : [],
+            'response_id' => $responseId,
+            'status' => $status,
+        ];
+    }
+
+    private function headers(): array
+    {
+        return [
+            'Authorization' => 'Bearer ' . $this->apiKey,
+            'Content-Type' => 'application/json',
         ];
     }
 

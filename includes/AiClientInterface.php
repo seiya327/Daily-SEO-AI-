@@ -7,7 +7,7 @@ namespace DSAP;
 interface AiClientInterface
 {
     /**
-     * @return array{data?: array, sources?: array, usage?: array}
+     * @return array{data?: array, sources?: array, usage?: array, pending?: bool, response_id?: string, status?: string}
      */
-    public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = ''): array|\WP_Error;
+    public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = '', bool $background = false, string $responseId = ''): array|\WP_Error;
 }

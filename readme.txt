@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.2
+Stable tag: 0.6.3
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -23,6 +23,7 @@ This initial implementation includes:
 * Built-in editorial standards for intent matching, information gain, decision support, source discipline, and natural conversion paths.
 * Deterministic strategy validation with one automatic repair pass for generic, duplicated, disconnected, or cannibalizing plans.
 * Deterministic article checks plus audit-driven automatic rewriting before draft or publication.
+* Resumable OpenAI background generation for long-running site strategy jobs.
 * Verified reference output, approved internal-link candidates, cluster-aware CV routing, and completed-topic tracking.
 * First-party page-view, internal CTA click, and affiliate CTA click measurement for conversion-oriented PDCA.
 * Pipeline progress for strategy, research, writing, audit, and publishing.
@@ -55,6 +56,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests only the webmasters.readonly scope. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.3 =
+Moved long-running strategy generation to resumable OpenAI background responses, added progress polling and automatic admin refresh, and fixed retrying permanently failed jobs.
 
 = 0.6.2 =
 Changed one-click GitHub updates to use WordPress's native updater and filesystem credential flow, with specific diagnostics for file modifications, multisite, and user capability restrictions.

@@ -203,11 +203,49 @@ final class JobRepository
         $wpdb->update(Database::table('jobs'), [
             'status' => 'queued',
             'stage' => $nextStage,
+            'attempt' => 0,
             'lease_token' => null,
             'lease_expires_at' => null,
             'error_message' => null,
             'updated_at' => current_time('mysql'),
-        ], ['id' => $jobId], ['%s', '%s', '%s', '%s', '%s', '%s'], ['%d']);
+        ], ['id' => $jobId], ['%s', '%s', '%d', '%s', '%s', '%s', '%s'], ['%d']);
+    }
+
+    public function retry(int $jobId): bool
+    {
+        global $wpdb;
+
+        $job = $this->find($jobId);
+        if (!$job || in_array((string) ($job['status'] ?? ''), ['complete', 'running'], true)) {
+            return false;
+        }
+
+        $payload = json_decode((string) ($job['payload'] ?? ''), true);
+        $payload = is_array($payload) ? $payload : [];
+        if (($job['job_type'] ?? '') === 'site_strategy' && ($job['status'] ?? '') === 'failed_permanent') {
+            unset(
+                $payload['strategy'],
+                $payload['strategy_diagnostics'],
+                $payload['strategy_sources'],
+                $payload['strategy_generation_attempts'],
+                $payload['strategy_generation']
+            );
+            if (is_array($payload['usage'] ?? null)) {
+                unset($payload['usage']['strategy'], $payload['usage']['strategy_repair']);
+            }
+        }
+
+        $wpdb->update(Database::table('jobs'), [
+            'status' => 'queued',
+            'attempt' => 0,
+            'lease_token' => null,
+            'lease_expires_at' => null,
+            'error_message' => null,
+            'payload' => wp_json_encode($payload),
+            'updated_at' => current_time('mysql'),
+        ], ['id' => $jobId], ['%s', '%d', '%s', '%s', '%s', '%s', '%s'], ['%d']);
+
+        return true;
     }
 
     public function complete(int $jobId, int $postId): void

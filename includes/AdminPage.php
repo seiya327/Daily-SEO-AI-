@@ -56,6 +56,7 @@ final class AdminPage
         $settings = Settings::get();
         $topics = (new TopicRepository())->latest(50);
         $jobs = (new JobRepository())->latest(30);
+        $hasActiveJobs = array_filter($jobs, static fn (array $job): bool => in_array((string) ($job['status'] ?? ''), ['queued', 'running', 'failed_retryable'], true)) !== [];
         $strategy = get_option('dsap_strategy_plan', []);
         $hasKey = Settings::apiKey() !== '';
         $hasGoogleSecret = (string) $settings['gsc_client_secret'] !== '';
@@ -65,7 +66,7 @@ final class AdminPage
         $hasGithubToken = (string) $settings['github_token'] !== '';
         $autoSetupState = self::autoSetupState($settings, $hasKey, is_array($strategy) ? $strategy : []);
         ?>
-        <div class="wrap dsap-wrap">
+        <div class="wrap dsap-wrap" data-dsap-active-jobs="<?php echo $hasActiveJobs ? '1' : '0'; ?>">
             <h1>Daily SEO AI Publisher</h1>
             <?php self::notice(); ?>
 
@@ -130,6 +131,7 @@ final class AdminPage
                 <div class="dsap-panel">
                     <h2>2. 自動設定と記事計画</h2>
                     <p class="description">設定を直したあとに押すと、古い記事計画をリセットして新しい戦略を作り直します。</p>
+                    <p class="description">長時間かかる戦略生成はOpenAIのバックグラウンド処理で実行し、完了まで同じレスポンスIDを確認します。この方式はZero Data Retentionには対応しません。</p>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="dsap-inline-setting">
                         <?php wp_nonce_field('dsap_save_keyword_strategy'); ?>
                         <input type="hidden" name="action" value="dsap_save_keyword_strategy">
@@ -529,10 +531,12 @@ final class AdminPage
     {
         self::guard('dsap_retry_job');
         $jobId = absint($_POST['job_id'] ?? 0);
-        if ($jobId > 0) {
+        $retrying = $jobId > 0 && (new JobRepository())->retry($jobId);
+        if ($retrying) {
+            wp_clear_scheduled_hook(Scheduler::HOOK_RETRY_JOB, [$jobId]);
             wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
         }
-        self::redirect('再実行を予約しました。');
+        self::redirect($retrying ? '再実行を予約しました。' : '再実行できるジョブが見つかりませんでした。');
     }
 
     public static function deleteApiKey(): void
@@ -925,6 +929,9 @@ final class AdminPage
 
         $steps[2]['status'] = 'done';
         $jobStatus = (string) ($job['status'] ?? '');
+        $jobPayload = json_decode((string) ($job['payload'] ?? ''), true);
+        $generation = is_array($jobPayload) && is_array($jobPayload['strategy_generation'] ?? null) ? $jobPayload['strategy_generation'] : [];
+        $backgroundStatus = (string) ($generation['status'] ?? '');
         if (in_array($jobStatus, ['failed_retryable', 'failed_permanent'], true)) {
             $steps[3]['status'] = 'error';
             return [
@@ -936,12 +943,17 @@ final class AdminPage
         }
 
         $steps[3]['status'] = 'current';
-        return [
-            'progress' => $jobStatus === 'running' ? 80 : 65,
-            'label' => $jobStatus === 'running' ? 'AI戦略作成中' : 'AI戦略待機中',
-            'current' => $jobStatus === 'running'
+        $backgroundLabels = ['queued' => 'OpenAIの処理待ち', 'in_progress' => 'OpenAIが戦略を生成中'];
+        $backgroundActive = isset($backgroundLabels[$backgroundStatus]);
+        $current = $backgroundActive
+            ? $backgroundLabels[$backgroundStatus] . 'です。画面は進捗確認のため約15秒ごとに自動更新されます。'
+            : ($jobStatus === 'running'
                 ? 'AIが集客記事、CV記事、内部リンク、アフィリエイト導線を設計しています。'
-                : 'WordPress CronでAI戦略作成を開始します。少し待ってから画面を更新してください。',
+                : 'WordPress CronでAI戦略作成を開始します。少し待ってから画面を更新してください。');
+        return [
+            'progress' => $jobStatus === 'running' || $backgroundActive ? 80 : 65,
+            'label' => $jobStatus === 'running' || $backgroundStatus === 'in_progress' ? 'AI戦略作成中' : 'AI戦略待機中',
+            'current' => $current,
             'steps' => $steps,
         ];
     }
@@ -968,7 +980,7 @@ final class AdminPage
             echo '<tr><td colspan="7">まだジョブはありません。</td></tr>';
         }
         foreach ($jobs as $job) {
-            $progress = self::progress((string) $job['stage'], (string) $job['job_type']);
+            $progress = self::progress($job);
             $post = !empty($job['post_id']) ? '<a href="' . esc_url(get_edit_post_link((int) $job['post_id'])) . '">編集</a>' : '-';
             $typeLabel = ['site_strategy' => '戦略', 'refresh' => '改善', 'new_article' => '新規記事'][(string) $job['job_type']] ?? (string) $job['job_type'];
             echo '<tr><td>' . esc_html((string) $job['id']) . '</td><td>' . esc_html($typeLabel) . '</td>';
@@ -1055,10 +1067,22 @@ final class AdminPage
         echo '</tbody></table>';
     }
 
-    private static function progress(string $stage, string $jobType): int
+    private static function progress(array $job): int
     {
+        $stage = (string) ($job['stage'] ?? '');
+        $jobType = (string) ($job['job_type'] ?? '');
         if ($jobType === 'site_strategy') {
-            return $stage === 'complete' ? 100 : 50;
+            if ($stage === 'complete') {
+                return 100;
+            }
+            $payload = json_decode((string) ($job['payload'] ?? ''), true);
+            $generation = is_array($payload) && is_array($payload['strategy_generation'] ?? null) ? $payload['strategy_generation'] : [];
+            $phase = (string) ($generation['phase'] ?? 'initial');
+            $status = (string) ($generation['status'] ?? '');
+            if ($phase === 'repair') {
+                return $status === 'in_progress' ? 90 : 82;
+            }
+            return $status === 'in_progress' ? 72 : ($status === 'queued' ? 60 : 50);
         }
         if ($jobType === 'refresh') {
             return ['refresh_plan' => 20, 'refresh_draft' => 50, 'refresh_audit' => 75, 'refresh_apply' => 90, 'complete' => 100][$stage] ?? 0;
@@ -1073,6 +1097,12 @@ final class AdminPage
             return '';
         }
         if (($job['job_type'] ?? '') === 'site_strategy') {
+            $generation = is_array($payload['strategy_generation'] ?? null) ? $payload['strategy_generation'] : [];
+            $status = (string) ($generation['status'] ?? '');
+            if (in_array($status, ['queued', 'in_progress'], true)) {
+                $label = $status === 'in_progress' ? 'OpenAI生成中' : 'OpenAI処理待ち';
+                return $label . ' / 確認 ' . (string) ($generation['poll_count'] ?? 0) . '回';
+            }
             $diagnostics = is_array($payload['strategy_diagnostics'] ?? null) ? $payload['strategy_diagnostics'] : [];
             return $diagnostics !== [] ? '戦略品質 ' . (string) ($diagnostics['score'] ?? 0) . '点' : '';
         }

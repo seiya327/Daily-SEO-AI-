@@ -6,6 +6,15 @@ namespace DSAP;
 
 final class TopicRepository
 {
+    public function existsByKeyword(string $keyword): bool
+    {
+        global $wpdb;
+
+        return (int) $wpdb->get_var(
+            $wpdb->prepare("SELECT COUNT(*) FROM " . Database::table('topics') . " WHERE keyword = %s", $keyword)
+        ) > 0;
+    }
+
     public function create(string $keyword, string $instructions = '', string $articleType = 'attraction', string $cluster = '', string $targetUrl = '', string $anchorText = '', int $priority = 50, array $strategyMeta = []): int
     {
         global $wpdb;

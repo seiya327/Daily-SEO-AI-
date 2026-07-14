@@ -6,9 +6,9 @@ namespace DSAP;
 
 final class MockAiClient implements AiClientInterface
 {
-    public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = ''): array|\WP_Error
+    public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = '', bool $background = false, string $responseId = ''): array|\WP_Error
     {
-        unset($schema, $webSearch, $model);
+        unset($schema, $webSearch, $model, $background, $responseId);
 
         if ($schemaName === 'strategy_v1') {
             $articles = [];
