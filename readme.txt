@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.5.12
+Stable tag: 0.6.0
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -20,6 +20,11 @@ This initial implementation includes:
 * Model dropdowns, daily article count, funnel ratio, affiliate CTA settings, and a safe test run.
 * Article quality presets that adjust model selection, article depth, and audit thresholds.
 * Long-tail and unexpected-entry keyword strategy controls for content planning.
+* Built-in editorial standards for intent matching, information gain, decision support, source discipline, and natural conversion paths.
+* Deterministic strategy validation with one automatic repair pass for generic, duplicated, disconnected, or cannibalizing plans.
+* Deterministic article checks plus audit-driven automatic rewriting before draft or publication.
+* Verified reference output, approved internal-link candidates, cluster-aware CV routing, and completed-topic tracking.
+* First-party page-view, internal CTA click, and affiliate CTA click measurement for conversion-oriented PDCA.
 * Pipeline progress for strategy, research, writing, audit, and publishing.
 * Google Search Console OAuth connection and rolling performance sync.
 * Automated 28-day period comparison, refresh selection, AI rewrite, audit, revision backup, and review or auto-apply workflow.
@@ -50,6 +55,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests only the webmasters.readonly scope. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.0 =
+Added offer-led conversion strategy, strict long-tail plan validation and repair, built-in editorial prompts, deterministic article quality gates, audit-driven rewriting, verified references, controlled internal links, cluster-aware publishing order, CTA and page-view tracking, conversion-aware refresh selection, and automatic strategy refill.
 
 = 0.5.12 =
 Added long-tail and unexpected-entry keyword strategy settings and strengthened strategy prompts to avoid generic topic plans.

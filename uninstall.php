@@ -14,6 +14,7 @@ if (!is_array($settings) || empty($settings['delete_data_on_uninstall'])) {
 global $wpdb;
 
 $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}dsap_metrics_daily");
+$wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}dsap_events_daily");
 $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}dsap_jobs");
 $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}dsap_topics");
 

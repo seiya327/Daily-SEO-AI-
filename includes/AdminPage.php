@@ -118,7 +118,7 @@ final class AdminPage
 
                 <div class="dsap-panel">
                     <h2>記事品質</h2>
-                    <p class="description">記事が薄い場合はここを上げてください。モデル、最低文字量、監査基準、記事への指示をまとめて調整します。</p>
+                    <p class="description">検索意図への即答、情報利得、比較基準、失敗例、注意点、根拠、自然なCV導線を含む標準編集ルールは常に適用されます。ここでは文字量、監査基準、自動再執筆回数をまとめて調整します。不合格時の再執筆では追加のAPI利用料が発生します。</p>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <?php wp_nonce_field('dsap_save_quality'); ?>
                         <input type="hidden" name="action" value="dsap_save_quality">
@@ -745,7 +745,7 @@ final class AdminPage
     {
         echo '<select name="' . esc_attr($name) . '">';
         foreach (Settings::qualityProfiles() as $value => $profile) {
-            echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html((string) $profile['label']) . '（目安 ' . esc_html((string) $profile['min_words']) . '字以上 / 監査 ' . esc_html((string) $profile['audit_score']) . '点）</option>';
+            echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html((string) $profile['label']) . '（目安 ' . esc_html((string) $profile['min_words']) . '字以上 / 監査 ' . esc_html((string) $profile['audit_score']) . '点 / 再執筆 最大' . esc_html((string) ($profile['max_revisions'] ?? 1)) . '回）</option>';
         }
         echo '</select>';
     }
@@ -957,7 +957,7 @@ final class AdminPage
 
     private static function jobsTable(array $jobs): void
     {
-        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>種類</th><th>進捗</th><th>状態</th><th>投稿</th><th>エラー</th><th></th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>種類</th><th>進捗</th><th>状態</th><th>投稿</th><th>品質 / エラー</th><th></th></tr></thead><tbody>';
         if ($jobs === []) {
             echo '<tr><td colspan="7">まだジョブはありません。</td></tr>';
         }
@@ -967,7 +967,11 @@ final class AdminPage
             $typeLabel = ['site_strategy' => '戦略', 'refresh' => '改善', 'new_article' => '新規記事'][(string) $job['job_type']] ?? (string) $job['job_type'];
             echo '<tr><td>' . esc_html((string) $job['id']) . '</td><td>' . esc_html($typeLabel) . '</td>';
             echo '<td><div class="dsap-progress"><span style="width:' . esc_attr((string) $progress) . '%"></span></div><small>' . esc_html(self::stageLabel((string) $job['stage'])) . ' ' . esc_html((string) $progress) . '%</small></td>';
-            echo '<td><span class="dsap-status dsap-status-' . esc_attr((string) $job['status']) . '">' . esc_html((string) $job['status']) . '</span></td><td>' . $post . '</td><td class="dsap-error">' . esc_html((string) ($job['error_message'] ?? '')) . '</td>';
+            $detail = trim((string) ($job['error_message'] ?? ''));
+            if ($detail === '') {
+                $detail = self::jobQualityDetail($job);
+            }
+            echo '<td><span class="dsap-status dsap-status-' . esc_attr((string) $job['status']) . '">' . esc_html((string) $job['status']) . '</span></td><td>' . $post . '</td><td class="dsap-error">' . esc_html($detail) . '</td>';
             echo '<td><div class="dsap-row-actions">';
             $isReviewDraft = ($job['job_type'] ?? '') === 'refresh' && ($job['status'] ?? '') === 'complete' && !empty($job['post_id']) && (int) $job['post_id'] !== (int) $job['target_post_id'] && get_post_status((int) $job['post_id']) === 'draft';
             if ($isReviewDraft) {
@@ -985,12 +989,12 @@ final class AdminPage
 
     private static function topicsTable(array $topics): void
     {
-        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>タイプ</th><th>キーワード</th><th>クラスター</th><th>誘導</th><th>最終実行</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>状態</th><th>タイプ</th><th>役割</th><th>キーワード</th><th>クラスター</th><th>誘導先</th><th>最終実行</th></tr></thead><tbody>';
         if ($topics === []) {
-            echo '<tr><td colspan="6">サイト戦略を作ると、AIが記事計画を登録します。</td></tr>';
+            echo '<tr><td colspan="8">サイト戦略を作ると、AIが記事計画を登録します。</td></tr>';
         }
         foreach ($topics as $topic) {
-            echo '<tr><td>' . esc_html((string) $topic['id']) . '</td><td>' . esc_html(($topic['article_type'] ?? '') === 'cv' ? 'CV' : '集客') . '</td><td>' . esc_html((string) $topic['keyword']) . '</td><td>' . esc_html((string) ($topic['cluster_name'] ?? '')) . '</td><td>' . esc_html((string) ($topic['anchor_text'] ?? '')) . '</td><td>' . esc_html((string) ($topic['last_job_at'] ?? '-')) . '</td></tr>';
+            echo '<tr><td>' . esc_html((string) $topic['id']) . '</td><td>' . esc_html((string) ($topic['status'] ?? '')) . '</td><td>' . esc_html(($topic['article_type'] ?? '') === 'cv' ? 'CV' : '集客') . '</td><td>' . esc_html((string) ($topic['content_role'] ?? '')) . '</td><td>' . esc_html((string) $topic['keyword']) . '</td><td>' . esc_html((string) ($topic['cluster_name'] ?? '')) . '</td><td>' . esc_html((string) ($topic['target_keyword'] ?? $topic['anchor_text'] ?? '')) . '</td><td>' . esc_html((string) ($topic['last_job_at'] ?? '-')) . '</td></tr>';
         }
         echo '</tbody></table>';
     }
@@ -1002,16 +1006,25 @@ final class AdminPage
             return;
         }
         $plan = $strategy['plan'];
-        echo '<div class="dsap-strategy-summary"><h3>現在の戦略</h3><p>' . esc_html((string) ($plan['strategy_summary'] ?? '')) . '</p><p><strong>導線:</strong> ' . esc_html((string) ($plan['funnel_summary'] ?? '')) . '</p><p><small>作成: ' . esc_html((string) ($strategy['created_at'] ?? '')) . '</small></p></div>';
+        $diagnostics = is_array($strategy['diagnostics'] ?? null) ? $strategy['diagnostics'] : [];
+        $metrics = is_array($diagnostics['metrics'] ?? null) ? $diagnostics['metrics'] : [];
+        echo '<div class="dsap-strategy-summary"><h3>現在の戦略</h3><p>' . esc_html((string) ($plan['strategy_summary'] ?? '')) . '</p><p><strong>商材分析:</strong> ' . esc_html((string) ($plan['offer_analysis'] ?? '')) . '</p><p><strong>狙う顧客:</strong> ' . esc_html((string) ($plan['ideal_customer_profile'] ?? '')) . '</p><p><strong>勝ち筋:</strong> ' . esc_html((string) ($plan['positioning'] ?? '')) . '</p><p><strong>導線:</strong> ' . esc_html((string) ($plan['funnel_summary'] ?? '')) . '</p>';
+        if ($metrics !== []) {
+            echo '<p><strong>戦略品質:</strong> ' . esc_html((string) ($diagnostics['score'] ?? 0)) . '点 / 記事 ' . esc_html((string) ($metrics['articles'] ?? 0)) . '件 / クラスター ' . esc_html((string) ($metrics['clusters'] ?? 0)) . '件 / ロングテール ' . esc_html((string) round((float) ($metrics['long_tail_ratio'] ?? 0) * 100)) . '%</p>';
+        }
+        foreach ((array) ($diagnostics['warnings'] ?? []) as $warning) {
+            echo '<p class="description">注意: ' . esc_html((string) $warning) . '</p>';
+        }
+        echo '<p><small>作成: ' . esc_html((string) ($strategy['created_at'] ?? '')) . ' / 生成 ' . esc_html((string) ($strategy['generation_attempts'] ?? 1)) . '回</small></p></div>';
     }
 
     private static function metricsTable(): void
     {
         $repo = new MetricsRepository();
         $ids = array_slice($repo->postIds(50), 0, 20);
-        echo '<table class="widefat striped"><thead><tr><th>記事</th><th>クリック</th><th>表示回数</th><th>CTR</th><th>平均順位</th><th>前期間比</th><th></th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>記事</th><th>検索クリック</th><th>CTAクリック / PV</th><th>表示回数</th><th>CTR</th><th>平均順位</th><th>前期間比</th><th></th></tr></thead><tbody>';
         if ($ids === []) {
-            echo '<tr><td colspan="7">まだSearch Consoleデータがありません。</td></tr>';
+            echo '<tr><td colspan="8">まだSearch Consoleデータがありません。</td></tr>';
         }
         foreach ($ids as $postId) {
             $comparison = $repo->comparison($postId);
@@ -1019,8 +1032,13 @@ final class AdminPage
             $previous = $comparison['previous'];
             $deltaClicks = (float) $current['clicks'] - (float) $previous['clicks'];
             $deltaPosition = (float) $current['position'] - (float) $previous['position'];
+            $eventType = (string) get_post_meta($postId, '_dsap_article_type', true) === 'cv' ? 'affiliate_click' : 'internal_cta_click';
+            $ctaClicks = (int) ($comparison['current_cta'][$eventType] ?? 0);
+            $pageViews = (int) ($comparison['current_cta']['page_view'] ?? 0);
+            $ctaRate = $pageViews > 0 ? $ctaClicks / $pageViews : 0;
             echo '<tr><td><a href="' . esc_url(get_edit_post_link($postId)) . '">' . esc_html(get_the_title($postId)) . '</a></td>';
-            echo '<td>' . esc_html(number_format_i18n((float) $current['clicks'], 0)) . '</td><td>' . esc_html(number_format_i18n((float) $current['impressions'], 0)) . '</td><td>' . esc_html(number_format_i18n((float) $current['ctr'] * 100, 2) . '%') . '</td><td>' . esc_html(number_format_i18n((float) $current['position'], 1)) . '</td>';
+            $ctaDisplay = $pageViews > 0 ? number_format_i18n($ctaClicks, 0) . ' / ' . number_format_i18n($pageViews, 0) . 'PV (' . number_format_i18n($ctaRate * 100, 1) . '%)' : number_format_i18n($ctaClicks, 0);
+            echo '<td>' . esc_html(number_format_i18n((float) $current['clicks'], 0)) . '</td><td>' . esc_html($ctaDisplay) . '</td><td>' . esc_html(number_format_i18n((float) $current['impressions'], 0)) . '</td><td>' . esc_html(number_format_i18n((float) $current['ctr'] * 100, 2) . '%') . '</td><td>' . esc_html(number_format_i18n((float) $current['position'], 1)) . '</td>';
             echo '<td>クリック ' . esc_html(($deltaClicks >= 0 ? '+' : '') . number_format_i18n($deltaClicks, 0)) . ' / 順位 ' . esc_html(($deltaPosition >= 0 ? '+' : '') . number_format_i18n($deltaPosition, 1)) . '</td>';
             echo '<td><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
             wp_nonce_field('dsap_refresh_post');
@@ -1039,12 +1057,37 @@ final class AdminPage
         if ($jobType === 'refresh') {
             return ['refresh_plan' => 20, 'refresh_draft' => 50, 'refresh_audit' => 75, 'refresh_apply' => 90, 'complete' => 100][$stage] ?? 0;
         }
-        return ['research' => 15, 'draft' => 45, 'audit' => 75, 'publish' => 90, 'complete' => 100][$stage] ?? 0;
+        return ['research' => 15, 'draft' => 40, 'audit' => 65, 'revise' => 82, 'publish' => 95, 'complete' => 100][$stage] ?? 0;
+    }
+
+    private static function jobQualityDetail(array $job): string
+    {
+        $payload = json_decode((string) ($job['payload'] ?? ''), true);
+        if (!is_array($payload)) {
+            return '';
+        }
+        if (($job['job_type'] ?? '') === 'site_strategy') {
+            $diagnostics = is_array($payload['strategy_diagnostics'] ?? null) ? $payload['strategy_diagnostics'] : [];
+            return $diagnostics !== [] ? '戦略品質 ' . (string) ($diagnostics['score'] ?? 0) . '点' : '';
+        }
+        $parts = [];
+        $metrics = is_array($payload['quality_diagnostics']['metrics'] ?? null) ? $payload['quality_diagnostics']['metrics'] : [];
+        if ($metrics !== []) {
+            $parts[] = (string) ($metrics['text_characters'] ?? 0) . '字';
+            $parts[] = 'H2 ' . (string) ($metrics['h2_count'] ?? 0);
+        }
+        if (is_array($payload['publish_decision'] ?? null)) {
+            $parts[] = '品質 ' . (string) ($payload['publish_decision']['score'] ?? 0) . '点';
+        }
+        if (!empty($payload['revision_count'])) {
+            $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';
+        }
+        return implode(' / ', $parts);
     }
 
     private static function stageLabel(string $stage): string
     {
-        return ['strategy' => '戦略作成', 'research' => 'リサーチ', 'draft' => '執筆', 'audit' => '監査', 'publish' => '投稿', 'refresh_plan' => '改善診断', 'refresh_draft' => 'リライト', 'refresh_audit' => '改善監査', 'refresh_apply' => '反映', 'complete' => '完了'][$stage] ?? $stage;
+        return ['strategy' => '戦略作成', 'research' => 'リサーチ', 'draft' => '執筆・機械検査', 'audit' => 'AI監査', 'revise' => '品質改善の再執筆', 'publish' => '投稿', 'refresh_plan' => '改善診断', 'refresh_draft' => 'リライト', 'refresh_audit' => '改善監査', 'refresh_apply' => '反映', 'complete' => '完了'][$stage] ?? $stage;
     }
 
     private static function stat(string $label, string $value): void

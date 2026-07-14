@@ -12,6 +12,12 @@ final class RefreshSelector
         if (empty($settings['refresh_enabled']) && $trigger === 'cron') {
             return 0;
         }
+        if ($trigger === 'cron') {
+            $lastSync = get_option('dsap_gsc_last_sync', []);
+            if (!is_array($lastSync) || empty($lastSync['synced_at']) || !empty($lastSync['error'])) {
+                return 0;
+            }
+        }
         $limit = max(0, min(5, (int) $settings['max_daily_refreshes']));
         if ($limit === 0) {
             return 0;
@@ -19,12 +25,13 @@ final class RefreshSelector
 
         $metrics = new MetricsRepository();
         $candidates = [];
-        foreach ($metrics->postIds() as $postId) {
+        $postIds = array_values(array_unique(array_merge($metrics->postIds(), $metrics->managedPostIds())));
+        foreach ($postIds as $postId) {
             if (!$this->eligibleByCooldown($postId, (int) $settings['refresh_cooldown_days'])) {
                 continue;
             }
             $comparison = $metrics->comparison($postId);
-            $evaluation = $this->evaluate($comparison, (int) $settings['refresh_min_impressions']);
+            $evaluation = $this->evaluate($postId, $comparison, (int) $settings['refresh_min_impressions']);
             if ($evaluation['eligible']) {
                 $comparison['reason'] = $evaluation['reason'];
                 $comparison['score'] = $evaluation['score'];
@@ -65,11 +72,16 @@ final class RefreshSelector
         return $last === '' || strtotime($last) < time() - max(14, $days) * DAY_IN_SECONDS;
     }
 
-    private function evaluate(array $comparison, int $minImpressions): array
+    private function evaluate(int $postId, array $comparison, int $minImpressions): array
     {
         $current = $comparison['current'];
         $previous = $comparison['previous'];
         if ((float) $current['impressions'] < $minImpressions) {
+            $post = get_post($postId);
+            $age = $post instanceof \WP_Post ? time() - strtotime($post->post_date_gmt . ' UTC') : 0;
+            if ((float) $current['impressions'] <= 0 && $age >= 45 * DAY_IN_SECONDS) {
+                return ['eligible' => true, 'score' => 25, 'reason' => 'no_visibility_after_45_days'];
+            }
             return ['eligible' => false, 'score' => 0, 'reason' => 'insufficient_data'];
         }
 
@@ -94,6 +106,14 @@ final class RefreshSelector
         if ($position >= 4 && $position <= 20) {
             $reasons[] = 'ranking_opportunity';
             $score += (21 - $position) * 2;
+        }
+        $articleType = (string) get_post_meta($postId, '_dsap_article_type', true);
+        $eventType = $articleType === 'cv' ? 'affiliate_click' : 'internal_cta_click';
+        $ctaClicks = (int) ($comparison['current_cta'][$eventType] ?? 0);
+        $pageViews = (int) ($comparison['current_cta']['page_view'] ?? 0);
+        if ($pageViews >= 20 && ($ctaClicks / max(1, $pageViews)) < 0.03) {
+            $reasons[] = $articleType === 'cv' ? 'low_affiliate_click_rate' : 'low_internal_cta_rate';
+            $score += 35;
         }
         $score += min(100, log10(max(10, (float) $current['impressions'])) * 10);
         return ['eligible' => $reasons !== [], 'score' => (int) round($score), 'reason' => implode(',', array_unique($reasons))];

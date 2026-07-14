@@ -8,6 +8,9 @@ final class SourceValidator
 {
     public static function validateResearch(array $research, array $apiSources): string
     {
+        if ($apiSources === []) {
+            return 'OpenAI web search did not return verifiable citations.';
+        }
         $sources = is_array($research['sources'] ?? null) ? $research['sources'] : [];
         if (count($sources) < 3) {
             return 'Research must include at least 3 sources.';
@@ -22,12 +25,10 @@ final class SourceValidator
             $sourceUrls[] = self::normalize($url);
         }
 
-        if ($apiSources !== []) {
-            $verified = array_map([self::class, 'normalize'], $apiSources);
-            foreach ($sourceUrls as $url) {
-                if (!in_array($url, $verified, true)) {
-                    return 'Research source URL was not present in OpenAI web search citations.';
-                }
+        $verified = array_map([self::class, 'normalize'], $apiSources);
+        foreach ($sourceUrls as $url) {
+            if (!in_array($url, $verified, true)) {
+                return 'Research source URL was not present in OpenAI web search citations.';
             }
         }
 

@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "usage": "Use one schema value as Responses API text.format.schema with strict=true.",
   "schemas": {
     "strategy_v1": {
@@ -8,9 +8,24 @@
       "properties": {
         "strategy_summary": { "type": "string", "minLength": 1, "maxLength": 3000 },
         "funnel_summary": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "offer_analysis": { "type": "string", "minLength": 20, "maxLength": 3000 },
+        "ideal_customer_profile": { "type": "string", "minLength": 20, "maxLength": 3000 },
+        "positioning": { "type": "string", "minLength": 20, "maxLength": 3000 },
+        "conversion_hypotheses": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 10, "maxLength": 800 }
+        },
+        "content_gap_opportunities": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 15,
+          "items": { "type": "string", "minLength": 10, "maxLength": 800 }
+        },
         "articles": {
           "type": "array",
-          "minItems": 12,
+          "minItems": 18,
           "maxItems": 30,
           "items": {
             "type": "object",
@@ -20,17 +35,24 @@
               "article_type": { "type": "string", "enum": ["attraction", "cv"] },
               "cluster_name": { "type": "string", "minLength": 1, "maxLength": 191 },
               "search_intent": { "type": "string", "enum": ["informational", "commercial", "transactional", "navigational"] },
+              "content_role": { "type": "string", "enum": ["problem", "howto", "comparison", "alternative", "case", "objection", "cv"] },
+              "reader_stage": { "type": "string", "enum": ["unaware", "problem_aware", "solution_aware", "product_aware", "ready"] },
+              "entry_angle": { "type": "string", "minLength": 8, "maxLength": 800 },
+              "hidden_pain": { "type": "string", "minLength": 8, "maxLength": 800 },
+              "content_promise": { "type": "string", "minLength": 8, "maxLength": 800 },
+              "conversion_bridge": { "type": "string", "minLength": 8, "maxLength": 800 },
+              "objection": { "type": "string", "minLength": 8, "maxLength": 800 },
               "brief": { "type": "string", "minLength": 1, "maxLength": 1500 },
               "target_keyword": { "type": "string", "maxLength": 120 },
               "target_url": { "type": "string", "maxLength": 2048 },
               "anchor_text": { "type": "string", "minLength": 1, "maxLength": 255 },
               "priority": { "type": "integer", "minimum": 1, "maximum": 100 }
             },
-            "required": ["keyword", "article_type", "cluster_name", "search_intent", "brief", "target_keyword", "target_url", "anchor_text", "priority"]
+            "required": ["keyword", "article_type", "cluster_name", "search_intent", "content_role", "reader_stage", "entry_angle", "hidden_pain", "content_promise", "conversion_bridge", "objection", "brief", "target_keyword", "target_url", "anchor_text", "priority"]
           }
         }
       },
-      "required": ["strategy_summary", "funnel_summary", "articles"]
+      "required": ["strategy_summary", "funnel_summary", "offer_analysis", "ideal_customer_profile", "positioning", "conversion_hypotheses", "content_gap_opportunities", "articles"]
     },
     "research_v1": {
       "type": "object",
@@ -59,6 +81,46 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1000
+        },
+        "reader_situation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "jobs_to_be_done": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "decision_criteria": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 15,
+          "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "competitor_content_gaps": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": { "type": "string", "minLength": 1, "maxLength": 600 }
+        },
+        "original_value_plan": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": { "type": "string", "minLength": 1, "maxLength": 600 }
+        },
+        "conversion_bridge": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "objections": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": { "type": "string", "minLength": 1, "maxLength": 500 }
         },
         "freshness_as_of": {
           "type": "string",
@@ -225,6 +287,13 @@
         "search_intent",
         "audience_need",
         "angle",
+        "reader_situation",
+        "jobs_to_be_done",
+        "decision_criteria",
+        "competitor_content_gaps",
+        "original_value_plan",
+        "conversion_bridge",
+        "objections",
         "freshness_as_of",
         "title_candidates",
         "outline",
@@ -294,6 +363,21 @@
           "type": "string",
           "minLength": 1
         },
+        "answer_summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 800
+        },
+        "cta_lead": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "cta_anchor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
         "source_indexes": {
           "type": "array",
           "minItems": 3,
@@ -325,6 +409,9 @@
         "category_name",
         "tags",
         "content_html",
+        "answer_summary",
+        "cta_lead",
+        "cta_anchor",
         "source_indexes",
         "internal_link_post_ids",
         "ymyl"
@@ -359,6 +446,26 @@
           "minimum": 0,
           "maximum": 100
         },
+        "information_gain": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "conversion_quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reader_trust": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "internal_link_quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
         "unsupported_claims": {
           "type": "array",
           "maxItems": 50,
@@ -371,6 +478,15 @@
         "critical_issues": {
           "type": "array",
           "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "revision_instructions": {
+          "type": "array",
+          "maxItems": 30,
           "items": {
             "type": "string",
             "minLength": 1,
@@ -392,8 +508,13 @@
         "clarity",
         "originality",
         "seo_quality",
+        "information_gain",
+        "conversion_quality",
+        "reader_trust",
+        "internal_link_quality",
         "unsupported_claims",
         "critical_issues",
+        "revision_instructions",
         "ymyl",
         "overall_score"
       ]
@@ -414,7 +535,8 @@
             "restore_decay",
             "expand_intent",
             "update_freshness",
-            "improve_internal_links"
+            "improve_internal_links",
+            "improve_conversion"
           ]
         },
         "diagnosis_summary": {
@@ -485,7 +607,8 @@
                   "ctr",
                   "position",
                   "impressions",
-                  "content_quality"
+                  "content_quality",
+                  "cta_clicks"
                 ]
               }
             },
@@ -564,6 +687,16 @@
           "type": "string",
           "minLength": 1
         },
+        "cta_lead": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "cta_anchor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
         "source_indexes": {
           "type": "array",
           "maxItems": 40,
@@ -628,6 +761,8 @@
         "focus_keyword",
         "related_keywords",
         "content_html",
+        "cta_lead",
+        "cta_anchor",
         "source_indexes",
         "sources",
         "internal_link_post_ids",

@@ -78,6 +78,17 @@ final class Scheduler
     public static function dailyGenerate(): void
     {
         $settings = Settings::get();
+        $topicRepo = new TopicRepository();
+        $jobRepo = new JobRepository();
+        if ($topicRepo->activeCount() === 0) {
+            if (!$jobRepo->hasActiveStrategyJob()) {
+                $strategyJobId = self::queueStrategyJob('auto_refill');
+                if ($strategyJobId > 0) {
+                    wp_schedule_single_event(time() + 5, self::HOOK_RETRY_JOB, [$strategyJobId]);
+                }
+            }
+            return;
+        }
         $max = max(1, min(10, (int) $settings['max_daily_new_articles']));
         for ($i = 0; $i < $max; $i++) {
             $preferred = ($i === 0 && !self::hasPublishedCv()) ? 'cv' : self::typeForSlot($i, $max, (int) $settings['attraction_ratio']);
@@ -91,9 +102,18 @@ final class Scheduler
     public static function queueDailyJob(string $trigger, ?string $preferredType = null): int
     {
         $topicRepo = new TopicRepository();
-        $topic = $topicRepo->nextActive($preferredType);
-        if (!$topic && $preferredType !== null) {
-            $topic = $topicRepo->nextActive();
+        if ($preferredType === 'attraction') {
+            $topic = $topicRepo->nextReadyAttraction();
+            if (!$topic) {
+                $topic = $topicRepo->nextActive('cv');
+            }
+        } elseif ($preferredType === 'cv') {
+            $topic = $topicRepo->nextActive('cv');
+            if (!$topic) {
+                $topic = $topicRepo->nextReadyAttraction();
+            }
+        } else {
+            $topic = $topicRepo->nextReadyAttraction() ?: $topicRepo->nextActive('cv');
         }
         if (!$topic) {
             return 0;

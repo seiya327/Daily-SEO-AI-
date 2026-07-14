@@ -17,6 +17,11 @@ final class JobRepository
             'trigger' => $trigger,
             'article_type' => $topic['article_type'] ?? 'attraction',
             'cluster_name' => $topic['cluster_name'] ?? '',
+            'content_role' => $topic['content_role'] ?? '',
+            'reader_stage' => $topic['reader_stage'] ?? '',
+            'target_keyword' => $topic['target_keyword'] ?? '',
+            'entry_angle' => $topic['entry_angle'] ?? '',
+            'conversion_bridge' => $topic['conversion_bridge'] ?? '',
             'target_url' => $topic['target_url'] ?? '',
             'anchor_text' => $topic['anchor_text'] ?? '',
             'conversion_goal' => $settings['conversion_goal'],
@@ -76,6 +81,14 @@ final class JobRepository
             'updated_at' => $now,
         ], ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
         return $ok === false ? 0 : (int) $wpdb->insert_id;
+    }
+
+    public function hasActiveStrategyJob(): bool
+    {
+        global $wpdb;
+        return (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM " . Database::table('jobs') . " WHERE job_type = 'site_strategy' AND status IN ('queued', 'running', 'failed_retryable')"
+        ) > 0;
     }
 
     public function createRefreshJob(int $postId, array $metrics, string $trigger): int

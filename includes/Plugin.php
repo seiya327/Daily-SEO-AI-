@@ -25,6 +25,7 @@ final class Plugin
         Settings::boot();
         AdminPage::boot();
         Scheduler::boot();
+        (new ConversionTracker())->boot();
         (new GitHubUpdater())->boot();
         (new SeoManager())->boot();
     }

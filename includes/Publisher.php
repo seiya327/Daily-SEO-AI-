@@ -9,6 +9,7 @@ final class Publisher
     public function publish(int $jobId, array $payload): int|\WP_Error
     {
         $article = is_array($payload['article'] ?? null) ? $payload['article'] : [];
+        $research = is_array($payload['research'] ?? null) ? $payload['research'] : [];
         $funnel = is_array($payload['funnel'] ?? null) ? $payload['funnel'] : [];
         if ($article === []) {
             return new \WP_Error('dsap_missing_article', 'Missing article payload.');
@@ -17,7 +18,6 @@ final class Publisher
         $placeholderSlug = 'dsap-job-' . $jobId;
         $postId = $this->recoverPost($jobId, $placeholderSlug);
         $decision = is_array($payload['publish_decision'] ?? null) ? $payload['publish_decision'] : ['post_status' => 'draft'];
-
         if ($postId === 0) {
             $postId = wp_insert_post([
                 'post_title' => sanitize_text_field((string) ($article['title'] ?? $placeholderSlug)),
@@ -39,8 +39,16 @@ final class Publisher
             update_post_meta((int) $postId, '_dsap_needs_review_reason', 'Slug collision detected.');
         }
 
+        $cta = $this->ctaData((int) $postId, $funnel, $article);
+        if ($cta['target'] === '') {
+            $decision['post_status'] = 'draft';
+            update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
+        }
         $content = wp_kses_post((string) ($article['content_html'] ?? ''));
-        $content .= $this->cta($funnel);
+        $content .= $this->relatedLinks($article);
+        $content .= $this->references($article, $research);
+        $content .= $cta['html'];
+
         $updated = wp_update_post([
             'ID' => (int) $postId,
             'post_title' => sanitize_text_field((string) ($article['title'] ?? '')),
@@ -59,53 +67,122 @@ final class Publisher
         update_post_meta((int) $postId, '_dsap_job_id', $jobId);
         update_post_meta((int) $postId, '_dsap_article_type', sanitize_key((string) ($funnel['article_type'] ?? 'attraction')));
         update_post_meta((int) $postId, '_dsap_cluster_name', sanitize_text_field((string) ($funnel['cluster_name'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_content_role', sanitize_key((string) ($funnel['content_role'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_reader_stage', sanitize_key((string) ($funnel['reader_stage'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_target_keyword', sanitize_text_field((string) ($funnel['target_keyword'] ?? '')));
         update_post_meta((int) $postId, '_dsap_meta_description', sanitize_text_field((string) ($article['meta_description'] ?? '')));
         update_post_meta((int) $postId, '_dsap_focus_keyword', sanitize_text_field((string) ($article['focus_keyword'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_cta_target', $cta['target']);
+        update_post_meta((int) $postId, '_dsap_cta_event_type', $cta['event_type']);
+        update_post_meta((int) $postId, '_dsap_cta_lead', sanitize_text_field((string) ($article['cta_lead'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_cta_anchor', sanitize_text_field((string) ($article['cta_anchor'] ?? '')));
         update_post_meta((int) $postId, '_dsap_payload_hash', hash('sha256', wp_json_encode($payload) ?: ''));
         update_post_meta((int) $postId, '_dsap_publish_decision', wp_json_encode($decision));
         return (int) $postId;
     }
 
-    private function cta(array $funnel): string
+    private function ctaData(int $postId, array $funnel, array $article): array
     {
         $settings = Settings::get();
         $type = ($funnel['article_type'] ?? 'attraction') === 'cv' ? 'cv' : 'attraction';
-        $url = esc_url_raw((string) ($funnel['target_url'] ?? ''));
-        $anchor = sanitize_text_field((string) ($funnel['anchor_text'] ?? ''));
-
+        $target = '';
+        $eventType = $type === 'cv' ? 'affiliate_click' : 'internal_cta_click';
         if ($type === 'cv') {
-            $url = $url !== '' ? $url : esc_url_raw((string) $settings['affiliate_url']);
-            $anchor = $anchor !== '' ? $anchor : sanitize_text_field((string) $settings['affiliate_anchor']);
-        } elseif ($url === '') {
-            $url = $this->latestCvPostUrl((string) ($funnel['cluster_name'] ?? ''));
-            $anchor = $anchor !== '' ? $anchor : 'おすすめサービスの比較記事を見る';
+            $target = esc_url_raw((string) ($funnel['target_url'] ?? ''));
+            $target = $target !== '' ? $target : esc_url_raw((string) $settings['affiliate_url']);
+        } else {
+            $target = $this->findCvPostUrl((string) ($funnel['target_keyword'] ?? ''), (string) ($funnel['cluster_name'] ?? ''));
+        }
+        if ($target === '') {
+            return ['html' => '', 'target' => '', 'event_type' => $eventType];
         }
 
-        if ($url === '') {
-            return '';
+        $lead = sanitize_text_field((string) ($article['cta_lead'] ?? ''));
+        $anchor = sanitize_text_field((string) ($article['cta_anchor'] ?? ''));
+        if ($anchor === '') {
+            $anchor = $type === 'cv' ? sanitize_text_field((string) $settings['affiliate_anchor']) : sanitize_text_field((string) ($funnel['anchor_text'] ?? ''));
         }
-        $disclosure = $type === 'cv' ? '<p class="dsap-disclosure"><small>' . esc_html((string) $settings['affiliate_disclosure']) . '</small></p>' : '';
+        if ($anchor === '') {
+            $anchor = $type === 'cv' ? '公式サイトで詳細を確認する' : '比較・選び方の記事へ進む';
+        }
+        $trackingUrl = add_query_arg(['dsap_go' => $postId], home_url('/'));
         $rel = $type === 'cv' ? ' rel="sponsored nofollow"' : '';
-        return '<aside class="dsap-cta">' . $disclosure . '<p><a href="' . esc_url($url) . '"' . $rel . '>' . esc_html($anchor !== '' ? $anchor : '詳しく見る') . '</a></p></aside>';
+        $disclosure = $type === 'cv' ? '<p class="dsap-disclosure"><small>' . esc_html((string) $settings['affiliate_disclosure']) . '</small></p>' : '';
+        $leadHtml = $lead !== '' ? '<p class="dsap-cta-lead">' . esc_html($lead) . '</p>' : '';
+        $html = '<aside class="dsap-cta dsap-cta-' . esc_attr($type) . '">' . $disclosure . $leadHtml . '<p><a href="' . esc_url($trackingUrl) . '"' . $rel . '>' . esc_html($anchor) . '</a></p></aside>';
+        return ['html' => $html, 'target' => $target, 'event_type' => $eventType];
     }
 
-    private function latestCvPostUrl(string $cluster): string
+    private function relatedLinks(array $article): string
     {
+        $items = [];
+        foreach ((array) ($article['internal_link_post_ids'] ?? []) as $postId) {
+            $postId = absint($postId);
+            if ($postId <= 0 || get_post_status($postId) !== 'publish') {
+                continue;
+            }
+            $url = get_permalink($postId);
+            $title = get_the_title($postId);
+            if ($url && $title !== '') {
+                $items[] = '<li><a href="' . esc_url((string) $url) . '">' . esc_html((string) $title) . '</a></li>';
+            }
+        }
+        if ($items === []) {
+            return '';
+        }
+        return '<aside class="dsap-related"><h2>あわせて読みたい</h2><ul>' . implode('', array_unique($items)) . '</ul></aside>';
+    }
+
+    private function references(array $article, array $research): string
+    {
+        $sources = is_array($research['sources'] ?? null) ? $research['sources'] : [];
+        $items = [];
+        foreach (array_values(array_unique(array_map('intval', (array) ($article['source_indexes'] ?? [])))) as $index) {
+            if (!isset($sources[$index]) || !is_array($sources[$index])) {
+                continue;
+            }
+            $url = esc_url_raw((string) ($sources[$index]['url'] ?? ''));
+            $title = sanitize_text_field((string) ($sources[$index]['title'] ?? $url));
+            $publisher = sanitize_text_field((string) ($sources[$index]['publisher'] ?? ''));
+            if ($url !== '') {
+                $label = $publisher !== '' ? $title . ' - ' . $publisher : $title;
+                $items[] = '<li><a href="' . esc_url($url) . '" rel="noopener noreferrer" target="_blank">' . esc_html($label) . '</a></li>';
+            }
+        }
+        if ($items === []) {
+            return '';
+        }
+        return '<section class="dsap-references"><h2>参考資料</h2><ul>' . implode('', $items) . '</ul></section>';
+    }
+
+    private function findCvPostUrl(string $targetKeyword, string $cluster): string
+    {
+        if ($targetKeyword !== '') {
+            $posts = get_posts([
+                'post_type' => 'post',
+                'post_status' => 'publish',
+                'fields' => 'ids',
+                'numberposts' => 1,
+                'meta_query' => [
+                    ['key' => '_dsap_article_type', 'value' => 'cv'],
+                    ['key' => '_dsap_focus_keyword', 'value' => $targetKeyword],
+                ],
+            ]);
+            if (!empty($posts[0])) {
+                return (string) get_permalink((int) $posts[0]);
+            }
+        }
         $args = [
             'post_type' => 'post',
             'post_status' => 'publish',
-            'meta_key' => '_dsap_article_type',
-            'meta_value' => 'cv',
             'fields' => 'ids',
             'numberposts' => 1,
+            'meta_query' => [
+                ['key' => '_dsap_article_type', 'value' => 'cv'],
+            ],
         ];
         if ($cluster !== '') {
-            $args['meta_query'] = [
-                'relation' => 'AND',
-                ['key' => '_dsap_article_type', 'value' => 'cv'],
-                ['key' => '_dsap_cluster_name', 'value' => $cluster],
-            ];
-            unset($args['meta_key'], $args['meta_value']);
+            $args['meta_query'][] = ['key' => '_dsap_cluster_name', 'value' => $cluster];
         }
         $posts = get_posts($args);
         return !empty($posts[0]) ? (string) get_permalink((int) $posts[0]) : '';

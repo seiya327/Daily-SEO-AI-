@@ -17,6 +17,10 @@ final class OpenAiClient implements AiClientInterface
     {
         $body = [
             'model' => $model !== '' ? $model : 'gpt-5.6-terra',
+            'reasoning' => [
+                'effort' => in_array($schemaName, ['strategy_v1', 'audit_v1'], true) ? 'high' : 'medium',
+            ],
+            'max_output_tokens' => in_array($schemaName, ['article_v1', 'refresh_article_v1'], true) ? 24000 : 12000,
             'input' => [
                 [
                     'role' => 'developer',
@@ -44,7 +48,7 @@ final class OpenAiClient implements AiClientInterface
         }
 
         $response = wp_remote_post('https://api.openai.com/v1/responses', [
-            'timeout' => 90,
+            'timeout' => 120,
             'headers' => [
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
@@ -69,6 +73,10 @@ final class OpenAiClient implements AiClientInterface
         }
 
         $text = $this->extractOutputText($json);
+        if ($text === '') {
+            $reason = (string) ($json['incomplete_details']['reason'] ?? $json['status'] ?? 'empty output');
+            return new \WP_Error('dsap_openai_empty_output', 'OpenAI did not return structured output: ' . $reason);
+        }
         $data = json_decode($text, true);
         if (!is_array($data)) {
             return new \WP_Error('dsap_openai_schema_json', 'OpenAI output did not parse as JSON.');

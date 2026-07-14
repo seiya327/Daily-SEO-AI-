@@ -31,6 +31,7 @@ final class Pipeline
                 'research' => $this->research($job),
                 'draft' => $this->draft($job),
                 'audit' => $this->audit($job),
+                'revise' => $this->revise($job),
                 'publish' => $this->publish($job),
                 default => $repo->fail($jobId, 'Unknown stage.', true),
             };
@@ -134,12 +135,14 @@ final class Pipeline
     private function strategy(array $job): void
     {
         $repo = new JobRepository();
+        $settings = Settings::get();
+        $siteContext = SiteContext::forStrategy();
         $result = $this->client->respond(
             'strategy_v1',
             Contracts::schema('strategy_v1'),
-            PromptBuilder::strategy($job),
-            false,
-            (string) Settings::get()['model_research']
+            PromptBuilder::strategy($job, $siteContext),
+            true,
+            (string) $settings['model_research']
         );
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
@@ -147,26 +150,53 @@ final class Pipeline
         }
 
         $plan = is_array($result['data'] ?? null) ? $result['data'] : [];
-        $articles = is_array($plan['articles'] ?? null) ? $plan['articles'] : [];
-        if ($articles === []) {
-            $repo->fail((int) $job['id'], 'Strategy did not contain any article plans.', true);
+        $diagnostics = StrategyGate::inspect($plan, $settings, $siteContext);
+        $usage = ['strategy' => $result['usage'] ?? []];
+        $sources = is_array($result['sources'] ?? null) ? $result['sources'] : [];
+        $attempts = 1;
+        if (empty($diagnostics['passed'])) {
+            $repair = $this->client->respond(
+                'strategy_v1',
+                Contracts::schema('strategy_v1'),
+                PromptBuilder::strategyRepair($job, $plan, $diagnostics, $siteContext),
+                true,
+                (string) $settings['model_research']
+            );
+            if (is_wp_error($repair)) {
+                $repo->fail((int) $job['id'], $repair->get_error_message(), $this->isPermanent($repair));
+                return;
+            }
+            $attempts = 2;
+            $plan = is_array($repair['data'] ?? null) ? $repair['data'] : [];
+            $diagnostics = StrategyGate::inspect($plan, $settings, $siteContext);
+            $usage['strategy_repair'] = $repair['usage'] ?? [];
+            $sources = array_values(array_unique(array_merge($sources, is_array($repair['sources'] ?? null) ? $repair['sources'] : [])));
+        }
+        if (empty($diagnostics['passed'])) {
+            $message = implode(' / ', array_slice(is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : ['戦略品質基準を満たせませんでした。'], 0, 5));
+            $repo->savePayload((int) $job['id'], ['strategy' => $plan, 'strategy_diagnostics' => $diagnostics, 'usage' => $usage]);
+            $repo->fail((int) $job['id'], $message, true);
             return;
         }
 
+        $articles = is_array($plan['articles'] ?? null) ? $plan['articles'] : [];
         $topicRepo = new TopicRepository();
         foreach ($articles as $article) {
             if (!is_array($article) || empty($article['keyword'])) {
                 continue;
             }
             $articleType = ($article['article_type'] ?? '') === 'cv' ? 'cv' : 'attraction';
+            $configuredAffiliate = esc_url_raw((string) $settings['affiliate_url']);
+            $targetUrl = $articleType === 'cv' ? $configuredAffiliate : '';
             $topicRepo->create(
                 sanitize_text_field((string) $article['keyword']),
-                sanitize_textarea_field((string) ($article['brief'] ?? '')),
+                self::topicInstructions($article),
                 $articleType,
                 sanitize_text_field((string) ($article['cluster_name'] ?? '')),
-                $articleType === 'cv' ? esc_url_raw((string) Settings::get()['affiliate_url']) : '',
+                $targetUrl,
                 sanitize_text_field((string) ($article['anchor_text'] ?? '')),
-                absint($article['priority'] ?? 50)
+                absint($article['priority'] ?? 50),
+                $article
             );
         }
 
@@ -174,8 +204,11 @@ final class Pipeline
             'plan' => $plan,
             'created_at' => current_time('mysql'),
             'job_id' => (int) $job['id'],
+            'diagnostics' => $diagnostics,
+            'research_sources' => $sources,
+            'generation_attempts' => $attempts,
         ], false);
-        $repo->savePayload((int) $job['id'], ['strategy' => $plan, 'usage' => $result['usage'] ?? []]);
+        $repo->savePayload((int) $job['id'], ['strategy' => $plan, 'strategy_diagnostics' => $diagnostics, 'strategy_sources' => $sources, 'usage' => $usage]);
         $repo->complete((int) $job['id'], 0);
     }
 
@@ -201,9 +234,15 @@ final class Pipeline
         $payload['funnel'] = [
             'article_type' => $topic['article_type'] ?? 'attraction',
             'cluster_name' => $topic['cluster_name'] ?? '',
+            'content_role' => $topic['content_role'] ?? '',
+            'reader_stage' => $topic['reader_stage'] ?? '',
+            'target_keyword' => $topic['target_keyword'] ?? '',
+            'entry_angle' => $topic['entry_angle'] ?? '',
+            'conversion_bridge' => $topic['conversion_bridge'] ?? '',
             'target_url' => $topic['target_url'] ?? '',
             'anchor_text' => $topic['anchor_text'] ?? '',
         ];
+        $payload['internal_link_candidates'] = SiteContext::internalLinkCandidates((string) ($topic['cluster_name'] ?? ''));
         $payload['research'] = $result['data'] ?? [];
         $payload['api_sources'] = $result['sources'] ?? [];
         $payload['usage']['research'] = $result['usage'] ?? [];
@@ -234,10 +273,30 @@ final class Pipeline
         $article['content_html'] = wp_kses_post((string) ($article['content_html'] ?? ''));
         $payload['article'] = $article;
         $payload['usage']['draft'] = $result['usage'] ?? [];
+        $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
 
-        $hardError = QualityGate::hardChecks($payload);
-        if ($hardError !== '') {
-            $repo->fail((int) $job['id'], $hardError, true);
+        if (empty($payload['quality_diagnostics']['passed'])) {
+            $repair = $this->client->respond(
+                'article_v1',
+                Contracts::schema('article_v1'),
+                PromptBuilder::repairArticle($payload, $job, $payload['quality_diagnostics']),
+                false,
+                (string) Settings::get()['model_research']
+            );
+            if (is_wp_error($repair)) {
+                $repo->fail((int) $job['id'], $repair->get_error_message(), $this->isPermanent($repair));
+                return;
+            }
+            $article = is_array($repair['data'] ?? null) ? $repair['data'] : [];
+            $article['content_html'] = wp_kses_post((string) ($article['content_html'] ?? ''));
+            $payload['article'] = $article;
+            $payload['usage']['draft_repair'] = $repair['usage'] ?? [];
+            $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
+        }
+        if (empty($payload['quality_diagnostics']['passed'])) {
+            $message = implode(' / ', array_slice($payload['quality_diagnostics']['errors'] ?? ['記事品質基準を満たせませんでした。'], 0, 5));
+            $repo->savePayload((int) $job['id'], $payload);
+            $repo->fail((int) $job['id'], $message, true);
             return;
         }
 
@@ -258,11 +317,48 @@ final class Pipeline
         }
 
         $payload['audit'] = $result['data'] ?? [];
-        $payload['usage']['audit'] = $result['usage'] ?? [];
+        $revisionCount = max(0, (int) ($payload['revision_count'] ?? 0));
+        $payload['usage']['audit_' . $revisionCount] = $result['usage'] ?? [];
         $payload['publish_decision'] = QualityGate::decision($payload, Settings::get());
 
         $repo->savePayload((int) $job['id'], $payload);
-        $repo->advance((int) $job['id'], 'publish');
+        $profile = Settings::qualityProfile();
+        $maxRevisions = max(0, (int) ($profile['max_revisions'] ?? 1));
+        $nextStage = QualityGate::needsRevision($payload, Settings::get()) && $revisionCount < $maxRevisions ? 'revise' : 'publish';
+        $repo->advance((int) $job['id'], $nextStage);
+        Scheduler::scheduleNextStage((int) $job['id']);
+    }
+
+    private function revise(array $job): void
+    {
+        $repo = new JobRepository();
+        $payload = $this->payload($job);
+        $previousArticle = is_array($payload['article'] ?? null) ? $payload['article'] : [];
+        $result = $this->client->respond('article_v1', Contracts::schema('article_v1'), PromptBuilder::revision($payload, $job), false, (string) Settings::get()['model_research']);
+        if (is_wp_error($result)) {
+            $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
+            return;
+        }
+        $revisionCount = max(0, (int) ($payload['revision_count'] ?? 0)) + 1;
+        $article = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $article['content_html'] = wp_kses_post((string) ($article['content_html'] ?? ''));
+        $payload['audit_history'][] = $payload['audit'] ?? [];
+        $payload['article'] = $article;
+        $payload['revision_count'] = $revisionCount;
+        $payload['usage']['revision_' . $revisionCount] = $result['usage'] ?? [];
+        $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
+        if (empty($payload['quality_diagnostics']['passed'])) {
+            $payload['article'] = $previousArticle;
+            $payload['revision_failure'] = $payload['quality_diagnostics'];
+            $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
+            $payload['publish_decision'] = QualityGate::decision($payload, array_merge(Settings::get(), ['post_status' => 'draft']));
+            $repo->savePayload((int) $job['id'], $payload);
+            $repo->advance((int) $job['id'], 'publish');
+            Scheduler::scheduleNextStage((int) $job['id']);
+            return;
+        }
+        $repo->savePayload((int) $job['id'], $payload);
+        $repo->advance((int) $job['id'], 'audit');
         Scheduler::scheduleNextStage((int) $job['id']);
     }
 
@@ -273,6 +369,10 @@ final class Pipeline
         if (is_wp_error($postId)) {
             (new JobRepository())->fail((int) $job['id'], $postId->get_error_message(), false);
             return;
+        }
+
+        if (empty($payload['test_mode']) && !empty($job['topic_id'])) {
+            (new TopicRepository())->markCompleted((int) $job['topic_id']);
         }
 
         (new JobRepository())->complete((int) $job['id'], (int) $postId);
@@ -287,6 +387,23 @@ final class Pipeline
     private function isPermanent(\WP_Error $error): bool
     {
         return !in_array($error->get_error_code(), ['dsap_openai_network', 'dsap_openai_retryable'], true);
+    }
+
+    private static function topicInstructions(array $article): string
+    {
+        $lines = [
+            '記事概要: ' . (string) ($article['brief'] ?? ''),
+            '検索意図: ' . (string) ($article['search_intent'] ?? ''),
+            'コンテンツ役割: ' . (string) ($article['content_role'] ?? ''),
+            '読者段階: ' . (string) ($article['reader_stage'] ?? ''),
+            '意外な入口: ' . (string) ($article['entry_angle'] ?? ''),
+            '隠れた悩み: ' . (string) ($article['hidden_pain'] ?? ''),
+            '記事の約束: ' . (string) ($article['content_promise'] ?? ''),
+            'CVへの橋渡し: ' . (string) ($article['conversion_bridge'] ?? ''),
+            '解消する反論: ' . (string) ($article['objection'] ?? ''),
+            '誘導先キーワード: ' . (string) ($article['target_keyword'] ?? ''),
+        ];
+        return sanitize_textarea_field(implode("\n", $lines));
     }
 
     private function targetPost(array $job): \WP_Post|\WP_Error

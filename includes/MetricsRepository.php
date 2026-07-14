@@ -58,9 +58,12 @@ final class MetricsRepository
         $currentStart = $end->modify('-27 days');
         $previousEnd = $currentStart->modify('-1 day');
         $previousStart = $previousEnd->modify('-27 days');
+        $conversion = new ConversionRepository();
         return [
             'current' => $this->summary($postId, $currentStart->format('Y-m-d'), $end->format('Y-m-d')),
             'previous' => $this->summary($postId, $previousStart->format('Y-m-d'), $previousEnd->format('Y-m-d')),
+            'current_cta' => $conversion->summary($postId, $currentStart->format('Y-m-d'), $end->format('Y-m-d')),
+            'previous_cta' => $conversion->summary($postId, $previousStart->format('Y-m-d'), $previousEnd->format('Y-m-d')),
             'current_range' => [$currentStart->format('Y-m-d'), $end->format('Y-m-d')],
             'previous_range' => [$previousStart->format('Y-m-d'), $previousEnd->format('Y-m-d')],
         ];
@@ -73,6 +76,20 @@ final class MetricsRepository
             "SELECT post_id FROM " . Database::table('metrics_daily') . " GROUP BY post_id ORDER BY SUM(impressions) DESC LIMIT %d",
             $limit
         ));
+        return array_map('intval', is_array($ids) ? $ids : []);
+    }
+
+    public function managedPostIds(int $limit = 500): array
+    {
+        $ids = get_posts([
+            'post_type' => 'post',
+            'post_status' => 'publish',
+            'meta_key' => '_dsap_job_id',
+            'fields' => 'ids',
+            'numberposts' => max(1, min(1000, $limit)),
+            'orderby' => 'date',
+            'order' => 'ASC',
+        ]);
         return array_map('intval', is_array($ids) ? $ids : []);
     }
 

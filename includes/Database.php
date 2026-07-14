@@ -6,7 +6,7 @@ namespace DSAP;
 
 final class Database
 {
-    public const DB_VERSION = '0.3.0';
+    public const DB_VERSION = '0.4.0';
 
     public static function table(string $name): string
     {
@@ -25,12 +25,18 @@ final class Database
         $topics = self::table('topics');
         $jobs = self::table('jobs');
         $metrics = self::table('metrics_daily');
+        $events = self::table('events_daily');
 
         dbDelta("CREATE TABLE {$topics} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             keyword VARCHAR(191) NOT NULL,
             article_type VARCHAR(32) NOT NULL DEFAULT 'attraction',
             cluster_name VARCHAR(191) NULL,
+            content_role VARCHAR(32) NULL,
+            reader_stage VARCHAR(32) NULL,
+            target_keyword VARCHAR(191) NULL,
+            entry_angle TEXT NULL,
+            conversion_bridge TEXT NULL,
             target_url TEXT NULL,
             anchor_text VARCHAR(255) NULL,
             status VARCHAR(32) NOT NULL DEFAULT 'active',
@@ -91,6 +97,20 @@ final class Database
             PRIMARY KEY  (id),
             UNIQUE KEY post_date_query (post_id, metric_date_pt, query_text(191)),
             KEY metric_date_pt (metric_date_pt)
+        ) {$charset};");
+
+        dbDelta("CREATE TABLE {$events} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            post_id BIGINT UNSIGNED NOT NULL,
+            event_date DATE NOT NULL,
+            event_type VARCHAR(32) NOT NULL,
+            event_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY post_date_type (post_id, event_date, event_type),
+            KEY event_date (event_date),
+            KEY event_type (event_type)
         ) {$charset};");
 
         update_option('dsap_db_version', self::DB_VERSION, false);

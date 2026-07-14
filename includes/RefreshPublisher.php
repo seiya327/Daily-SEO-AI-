@@ -36,7 +36,7 @@ final class RefreshPublisher
             (new JobRepository())->setRevision((int) $job['id'], $revisionId);
         }
 
-        $content = $this->preserveApprovedCta($post->post_content, wp_kses_post((string) ($article['content_html'] ?? '')));
+        $content = $this->composeContent($post->post_content, $article);
         $updated = wp_update_post([
             'ID' => $postId,
             'post_title' => sanitize_text_field((string) ($article['title'] ?? $post->post_title)),
@@ -48,6 +48,8 @@ final class RefreshPublisher
         }
         update_post_meta($postId, '_dsap_meta_description', sanitize_text_field((string) ($article['meta_description'] ?? '')));
         update_post_meta($postId, '_dsap_focus_keyword', sanitize_text_field((string) ($article['focus_keyword'] ?? '')));
+        update_post_meta($postId, '_dsap_cta_lead', sanitize_text_field((string) ($article['cta_lead'] ?? '')));
+        update_post_meta($postId, '_dsap_cta_anchor', sanitize_text_field((string) ($article['cta_anchor'] ?? '')));
         update_post_meta($postId, '_dsap_last_refresh_at', current_time('mysql'));
         update_post_meta($postId, '_dsap_last_refresh_job_id', (int) $job['id']);
         delete_post_meta($postId, '_dsap_refresh_pending_job_id');
@@ -84,7 +86,7 @@ final class RefreshPublisher
         if (is_wp_error($updated)) {
             return $updated;
         }
-        foreach (['_dsap_meta_description', '_dsap_focus_keyword'] as $key) {
+        foreach (['_dsap_meta_description', '_dsap_focus_keyword', '_dsap_cta_lead', '_dsap_cta_anchor'] as $key) {
             update_post_meta($targetId, $key, (string) get_post_meta($draftId, $key, true));
         }
         update_post_meta($targetId, '_dsap_last_refresh_at', current_time('mysql'));
@@ -111,7 +113,7 @@ final class RefreshPublisher
 
     private function createDraft(\WP_Post $post, array $article, array $job, bool $sourceChanged, bool $safe): int|\WP_Error
     {
-        $content = $this->preserveApprovedCta($post->post_content, wp_kses_post((string) ($article['content_html'] ?? '')));
+        $content = $this->composeContent($post->post_content, $article);
         $reason = $sourceChanged ? 'original_changed' : ($safe ? 'manual_review' : 'audit_failed');
         return wp_insert_post([
             'post_type' => 'post',
@@ -127,6 +129,8 @@ final class RefreshPublisher
                 '_dsap_refresh_review_reason' => $reason,
                 '_dsap_meta_description' => sanitize_text_field((string) ($article['meta_description'] ?? '')),
                 '_dsap_focus_keyword' => sanitize_text_field((string) ($article['focus_keyword'] ?? '')),
+                '_dsap_cta_lead' => sanitize_text_field((string) ($article['cta_lead'] ?? '')),
+                '_dsap_cta_anchor' => sanitize_text_field((string) ($article['cta_anchor'] ?? '')),
             ],
         ], true);
     }
@@ -134,20 +138,53 @@ final class RefreshPublisher
     private function passesAudit(array $payload): bool
     {
         $audit = is_array($payload['audit'] ?? null) ? $payload['audit'] : [];
-        return (int) ($audit['overall_score'] ?? 0) >= 85
+        $components = [];
+        foreach (['intent_coverage', 'factual_support', 'clarity', 'originality', 'seo_quality', 'information_gain', 'conversion_quality', 'reader_trust', 'internal_link_quality'] as $name) {
+            $components[] = max(0, min(100, (int) ($audit[$name] ?? 0)));
+        }
+        $componentScore = $components === [] ? 0 : (int) round(array_sum($components) / count($components));
+        $score = min((int) ($audit['overall_score'] ?? 0), $componentScore);
+        $minimum = (int) (Settings::qualityProfile()['audit_score'] ?? 85);
+        return $score >= $minimum
             && empty($audit['ymyl'])
             && empty($audit['critical_issues'])
             && empty($audit['unsupported_claims']);
     }
 
-    private function preserveApprovedCta(string $original, string $proposed): string
+    private function composeContent(string $original, array $article): string
     {
-        if (str_contains($proposed, 'class="dsap-cta"')) {
-            return $proposed;
+        $proposed = wp_kses_post((string) ($article['content_html'] ?? ''));
+        foreach (['dsap-related', 'dsap-references'] as $className) {
+            $pattern = '/<(aside|section)\s+class=["\'][^"\']*\b' . preg_quote($className, '/') . '\b[^"\']*["\'][^>]*>.*?<\/\1>/is';
+            if (preg_match($pattern, $original, $section)) {
+                $proposed = rtrim($proposed) . "\n" . $section[0];
+            }
         }
-        if (preg_match('/<aside\s+class=["\']dsap-cta["\'][^>]*>.*?<\/aside>/is', $original, $match)) {
-            return rtrim($proposed) . "\n" . $match[0];
+        if (preg_match('/<aside\s+class=["\'][^"\']*\bdsap-cta\b[^"\']*["\'][^>]*>.*?<\/aside>/is', $original, $match)) {
+            $cta = $this->refreshCtaCopy($match[0], $article);
+            $proposed = rtrim($proposed) . "\n" . $cta;
         }
         return $proposed;
+    }
+
+    private function refreshCtaCopy(string $cta, array $article): string
+    {
+        $lead = sanitize_text_field((string) ($article['cta_lead'] ?? ''));
+        $anchor = sanitize_text_field((string) ($article['cta_anchor'] ?? ''));
+        if ($lead !== '') {
+            $leadHtml = '<p class="dsap-cta-lead">' . esc_html($lead) . '</p>';
+            if (preg_match('/<p\s+class=["\'][^"\']*\bdsap-cta-lead\b[^"\']*["\'][^>]*>.*?<\/p>/is', $cta)) {
+                $cta = preg_replace('/<p\s+class=["\'][^"\']*\bdsap-cta-lead\b[^"\']*["\'][^>]*>.*?<\/p>/is', $leadHtml, $cta, 1) ?: $cta;
+            } else {
+                $cta = preg_replace('/(<p\s+class=["\'][^"\']*\bdsap-disclosure\b[^"\']*["\'][^>]*>.*?<\/p>)/is', '$1' . $leadHtml, $cta, 1, $count) ?: $cta;
+                if (empty($count)) {
+                    $cta = preg_replace('/(<aside\b[^>]*>)/i', '$1' . $leadHtml, $cta, 1) ?: $cta;
+                }
+            }
+        }
+        if ($anchor !== '') {
+            $cta = preg_replace_callback('/(<a\b[^>]*>).*?(<\/a>)/is', static fn(array $match): string => $match[1] . esc_html($anchor) . $match[2], $cta, 1) ?: $cta;
+        }
+        return $cta;
     }
 }
