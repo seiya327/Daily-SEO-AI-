@@ -124,7 +124,7 @@ final class AdminPage
                 </div>
 
                 <div class="dsap-panel dsap-setup-panel">
-                    <h2>3. Google連携</h2>
+                    <h2>3. Google連携と自動改善</h2>
                     <?php self::gscSetupWizard($settings, $gscConnected, is_array($gscSites) ? $gscSites : [], is_array($lastSync) ? $lastSync : []); ?>
                 </div>
 
@@ -723,7 +723,7 @@ final class AdminPage
             ['Google接続', $connected],
             ['プロパティ選択', $hasProperty],
             ['初回データ同期', $hasSync],
-            ['自動PDCA', $enabled],
+            ['自動改善', $enabled],
         ];
         echo '<div class="dsap-setup-progress">';
         foreach ($steps as [$label, $done]) {
@@ -735,6 +735,7 @@ final class AdminPage
             echo '<div class="dsap-setup-step"><h3>1. Google CloudでOAuthを作る</h3>';
             echo '<p><a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com">Search Console APIを有効化</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/auth/overview">同意画面を設定</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/credentials">OAuthクライアントを作成</a></p>';
             echo '<p>種類は「ウェブアプリケーション」。承認済みリダイレクトURIには次を登録します。</p>';
+            echo '<ol class="dsap-cycle"><li>「OAuthクライアントを作成」を開きます。</li><li>アプリケーションの種類で「ウェブアプリケーション」を選びます。</li><li>名前は「Daily SEO AI Publisher」など分かる名前にします。</li><li>「承認済みのリダイレクトURI」で「URIを追加」を押し、下のURLを貼り付けます。</li><li>「作成」を押し、JSONをダウンロードします。</li><li>ダウンロードしたJSONをこの画面のファイル選択から読み込みます。</li></ol>';
             echo '<div class="dsap-copy-row"><code id="' . esc_attr($redirectId) . '">' . esc_html(GoogleOAuth::redirectUri()) . '</code><button type="button" class="button" id="' . esc_attr($copyId) . '">コピー</button></div>';
             echo '<form method="post" enctype="multipart/form-data" action="' . esc_url(admin_url('admin-post.php')) . '">';
             wp_nonce_field('dsap_import_google_oauth');
