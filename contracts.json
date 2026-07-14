@@ -1,0 +1,641 @@
+{
+  "version": "1.1.0",
+  "usage": "Use one schema value as Responses API text.format.schema with strict=true.",
+  "schemas": {
+    "strategy_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy_summary": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "funnel_summary": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "articles": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "keyword": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "article_type": { "type": "string", "enum": ["attraction", "cv"] },
+              "cluster_name": { "type": "string", "minLength": 1, "maxLength": 191 },
+              "search_intent": { "type": "string", "enum": ["informational", "commercial", "transactional", "navigational"] },
+              "brief": { "type": "string", "minLength": 1, "maxLength": 1500 },
+              "target_keyword": { "type": "string", "maxLength": 120 },
+              "target_url": { "type": "string", "maxLength": 2048 },
+              "anchor_text": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "priority": { "type": "integer", "minimum": 1, "maximum": 100 }
+            },
+            "required": ["keyword", "article_type", "cluster_name", "search_intent", "brief", "target_keyword", "target_url", "anchor_text", "priority"]
+          }
+        }
+      },
+      "required": ["strategy_summary", "funnel_summary", "articles"]
+    },
+    "research_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primary_keyword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "search_intent": {
+          "type": "string",
+          "enum": [
+            "informational",
+            "commercial",
+            "transactional",
+            "navigational"
+          ]
+        },
+        "audience_need": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "angle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "freshness_as_of": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "title_candidates": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "outline": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 15,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "heading": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              },
+              "key_points": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              }
+            },
+            "required": [
+              "heading",
+              "purpose",
+              "key_points"
+            ]
+          }
+        },
+        "facts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "source_indexes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "confidence": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              }
+            },
+            "required": [
+              "claim",
+              "source_indexes",
+              "confidence"
+            ]
+          }
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "url": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 2048
+              },
+              "publisher": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "published_at": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "accessed_at": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              }
+            },
+            "required": [
+              "title",
+              "url",
+              "publisher",
+              "published_at",
+              "accessed_at"
+            ]
+          }
+        },
+        "related_keywords": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "entities": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "risks": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "ymyl": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "primary_keyword",
+        "search_intent",
+        "audience_need",
+        "angle",
+        "freshness_as_of",
+        "title_candidates",
+        "outline",
+        "facts",
+        "sources",
+        "related_keywords",
+        "entities",
+        "risks",
+        "ymyl"
+      ]
+    },
+    "article_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "meta_description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320
+        },
+        "focus_keyword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "related_keywords": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "category_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "content_html": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_indexes": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 40,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "internal_link_post_ids": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "ymyl": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "slug",
+        "excerpt",
+        "meta_description",
+        "focus_keyword",
+        "related_keywords",
+        "category_name",
+        "tags",
+        "content_html",
+        "source_indexes",
+        "internal_link_post_ids",
+        "ymyl"
+      ]
+    },
+    "audit_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intent_coverage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "factual_support": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "clarity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "originality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "seo_quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "unsupported_claims": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "critical_issues": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "ymyl": {
+          "type": "boolean"
+        },
+        "overall_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "intent_coverage",
+        "factual_support",
+        "clarity",
+        "originality",
+        "seo_quality",
+        "unsupported_claims",
+        "critical_issues",
+        "ymyl",
+        "overall_score"
+      ]
+    },
+    "refresh_plan_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "should_refresh": {
+          "type": "boolean"
+        },
+        "primary_goal": {
+          "type": "string",
+          "enum": [
+            "none",
+            "improve_rank",
+            "improve_ctr",
+            "restore_decay",
+            "expand_intent",
+            "update_freshness",
+            "improve_internal_links"
+          ]
+        },
+        "diagnosis_summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "target_queries": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "retained_elements": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "section_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "add",
+                  "update",
+                  "remove",
+                  "retain"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "metric_evidence": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "source_indexes": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "expected_metric": {
+                "type": "string",
+                "enum": [
+                  "clicks",
+                  "ctr",
+                  "position",
+                  "impressions",
+                  "content_quality"
+                ]
+              }
+            },
+            "required": [
+              "section_key",
+              "action",
+              "reason",
+              "metric_evidence",
+              "source_indexes",
+              "expected_metric"
+            ]
+          }
+        },
+        "risks": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "requires_web_research": {
+          "type": "boolean"
+        },
+        "ymyl": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "should_refresh",
+        "primary_goal",
+        "diagnosis_summary",
+        "target_queries",
+        "retained_elements",
+        "changes",
+        "risks",
+        "requires_web_research",
+        "ymyl"
+      ]
+    },
+    "refresh_article_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "meta_description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320
+        },
+        "focus_keyword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "related_keywords": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "content_html": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_indexes": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+              "url": { "type": "string", "minLength": 8, "maxLength": 2048 },
+              "publisher": { "type": "string", "maxLength": 300 },
+              "published_at": { "type": "string", "maxLength": 40 },
+              "accessed_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+            },
+            "required": ["title", "url", "publisher", "published_at", "accessed_at"]
+          }
+        },
+        "internal_link_post_ids": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "change_summary": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "preserved_facts": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "material_change": {
+          "type": "boolean"
+        },
+        "ymyl": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "excerpt",
+        "meta_description",
+        "focus_keyword",
+        "related_keywords",
+        "content_html",
+        "source_indexes",
+        "sources",
+        "internal_link_post_ids",
+        "change_summary",
+        "preserved_facts",
+        "material_change",
+        "ymyl"
+      ]
+    }
+  }
+}

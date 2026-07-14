@@ -1,0 +1,49 @@
+.dsap-wrap { max-width: 1320px; }
+.dsap-tabs { margin: 18px 0 0; }
+.dsap-section { display: none; padding-top: 4px; scroll-margin-top: 48px; }
+.dsap-section.is-active { display: block; }
+.dsap-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .85fr); gap: 16px; align-items: start; }
+.dsap-panel { background: #fff; border: 1px solid #c3c4c7; border-radius: 6px; padding: 18px; margin: 16px 0; }
+.dsap-panel h2 { margin: 0 0 14px; font-size: 18px; }
+.dsap-hero { display: flex; justify-content: space-between; gap: 18px; align-items: center; background: #fff; border: 1px solid #c3c4c7; border-left: 4px solid #2271b1; border-radius: 6px; padding: 18px; margin: 16px 0; }
+.dsap-hero h2 { margin: 0 0 6px; font-size: 20px; }
+.dsap-hero p { margin: 0; color: #50575e; }
+.dsap-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.dsap-stat { background: #fff; border-left: 4px solid #2271b1; border-top: 1px solid #dcdcde; border-right: 1px solid #dcdcde; border-bottom: 1px solid #dcdcde; padding: 14px; min-height: 56px; }
+.dsap-stat span { display: block; color: #50575e; font-size: 12px; }
+.dsap-stat strong { display: block; margin-top: 7px; font-size: 18px; }
+.dsap-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dsap-actions form { margin: 0; }
+.dsap-progress { width: 150px; height: 8px; overflow: hidden; background: #dcdcde; border-radius: 4px; margin-bottom: 4px; }
+.dsap-progress span { display: block; height: 100%; background: #2271b1; }
+.dsap-status { display: inline-block; padding: 2px 7px; border-radius: 3px; background: #f0f0f1; }
+.dsap-status-complete { background: #edfaef; color: #006b1b; }
+.dsap-status-running { background: #e7f5ff; color: #005a9c; }
+.dsap-status-failed_permanent, .dsap-status-failed_retryable { background: #fcf0f1; color: #b32d2e; }
+.dsap-error { max-width: 260px; color: #b32d2e; overflow-wrap: anywhere; }
+.dsap-strategy-summary { margin-top: 18px; padding: 14px; border-left: 4px solid #00a32a; background: #f6f7f7; }
+.dsap-strategy-summary h3 { margin-top: 0; }
+.dsap-code { display: block; max-width: 100%; padding: 8px; margin: 8px 0 14px; overflow-wrap: anywhere; white-space: normal; background: #f0f0f1; }
+.dsap-cycle { margin: 0 0 18px 22px; }
+.dsap-cycle li { margin-bottom: 7px; }
+.dsap-row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dsap-row-actions form { margin: 0; }
+.dsap-setup-progress { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0 0 18px; }
+.dsap-setup-progress span { padding: 8px; border: 1px solid #c3c4c7; background: #f6f7f7; color: #50575e; text-align: center; font-size: 12px; }
+.dsap-setup-progress span.is-done { border-color: #00a32a; background: #edfaef; color: #006b1b; }
+.dsap-setup-step { border-top: 1px solid #dcdcde; padding-top: 16px; }
+.dsap-setup-step h3 { margin-top: 0; }
+.dsap-setup-step form { margin-top: 14px; }
+.dsap-copy-row { display: flex; align-items: stretch; gap: 8px; margin: 10px 0 16px; }
+.dsap-copy-row code { flex: 1; padding: 8px; overflow-wrap: anywhere; white-space: normal; background: #f0f0f1; }
+.dsap-setup-complete { display: flex; gap: 12px; align-items: center; padding: 12px; border-left: 4px solid #00a32a; background: #edfaef; }
+.dsap-quick-grid { display: grid; gap: 14px; max-width: 880px; }
+.dsap-quick-grid label { display: grid; gap: 6px; font-weight: 600; }
+.dsap-quick-grid input, .dsap-quick-grid textarea { font-weight: 400; }
+.dsap-compact-options { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 18px 0; padding: 12px; background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 6px; }
+.dsap-advanced { margin-top: 8px; }
+.dsap-advanced summary, .dsap-panel summary { cursor: pointer; font-weight: 600; }
+.dsap-advanced .form-table { margin-top: 12px; }
+.dsap-settings-actions { margin-top: 12px; }
+@media (max-width: 960px) { .dsap-grid, .dsap-stats { grid-template-columns: 1fr 1fr; } .dsap-hero { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 600px) { .dsap-grid, .dsap-stats, .dsap-setup-progress { grid-template-columns: 1fr; } .dsap-progress { width: 100px; } .dsap-copy-row { align-items: flex-start; flex-direction: column; } .dsap-compact-options { align-items: flex-start; flex-direction: column; } }

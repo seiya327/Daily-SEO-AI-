@@ -1,0 +1,58 @@
+name: Build WordPress release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+
+      - name: Verify PHP syntax and tag version
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -not -path './dist/*' -print0 | xargs -0 -n1 php -l
+          tag_version="${GITHUB_REF_NAME#v}"
+          plugin_version="$(sed -n 's/^ \* Version: \(.*\)$/\1/p' daily-seo-ai-publisher.php | head -n1)"
+          test -n "$plugin_version"
+          test "$tag_version" = "$plugin_version"
+
+      - name: Build update package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/daily-seo-ai-publisher
+          rsync -a ./ dist/daily-seo-ai-publisher/ \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.gitignore' \
+            --exclude 'README.md' \
+            --exclude 'dist/'
+          cd dist
+          zip -qr daily-seo-ai-publisher.zip daily-seo-ai-publisher
+          sha256sum daily-seo-ai-publisher.zip > daily-seo-ai-publisher.zip.sha256
+          test "$(unzip -Z1 daily-seo-ai-publisher.zip | head -n1)" = 'daily-seo-ai-publisher/'
+          unzip -Z1 daily-seo-ai-publisher.zip | grep -qx 'daily-seo-ai-publisher/daily-seo-ai-publisher.php'
+
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/daily-seo-ai-publisher.zip
+            dist/daily-seo-ai-publisher.zip.sha256
