@@ -13,17 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.0'
+        uses: actions/checkout@v5
 
       - name: Verify PHP syntax and tag version
         shell: bash
         run: |
           set -euo pipefail
+          php -v
           find . -type f -name '*.php' -not -path './dist/*' -print0 | xargs -0 -n1 php -l
           tag_version="${GITHUB_REF_NAME#v}"
           plugin_version="$(sed -n 's/^ \* Version: \(.*\)$/\1/p' daily-seo-ai-publisher.php | head -n1)"
