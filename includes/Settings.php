@@ -12,6 +12,9 @@ final class Settings
     {
         return [
             'openai_api_key' => '',
+            'nvidia_api_key' => '',
+            'nvidia_fallback_enabled' => true,
+            'nvidia_model' => 'meta/llama-3.3-70b-instruct',
             'model_research' => 'gpt-5.6-terra',
             'model_audit' => 'gpt-5.6-luna',
             'model_refresh' => 'gpt-5.6-terra',
@@ -166,6 +169,16 @@ final class Settings
         return is_string($settings['openai_api_key']) ? $settings['openai_api_key'] : '';
     }
 
+    public static function nvidiaApiKey(): string
+    {
+        $env = getenv('DSAP_NVIDIA_API_KEY');
+        if (is_string($env) && $env !== '') {
+            return $env;
+        }
+        $settings = self::get();
+        return is_string($settings['nvidia_api_key']) ? $settings['nvidia_api_key'] : '';
+    }
+
     public static function register(): void
     {
         register_setting('dsap_settings_group', self::OPTION, [
@@ -181,6 +194,7 @@ final class Settings
         $input = is_array($input) ? $input : [];
         $next = self::defaults();
         $incomingKey = isset($input['openai_api_key']) ? trim((string) wp_unslash($input['openai_api_key'])) : '';
+        $incomingNvidiaKey = isset($input['nvidia_api_key']) ? trim((string) wp_unslash($input['nvidia_api_key'])) : '';
 
         if (!empty($input['delete_openai_api_key'])) {
             $next['openai_api_key'] = '';
@@ -188,6 +202,18 @@ final class Settings
             $next['openai_api_key'] = $incomingKey;
         } else {
             $next['openai_api_key'] = (string) ($old['openai_api_key'] ?? '');
+        }
+        if (!empty($input['delete_nvidia_api_key'])) {
+            $next['nvidia_api_key'] = '';
+        } elseif ($incomingNvidiaKey !== '') {
+            $next['nvidia_api_key'] = $incomingNvidiaKey;
+        } else {
+            $next['nvidia_api_key'] = (string) ($old['nvidia_api_key'] ?? '');
+        }
+        $next['nvidia_fallback_enabled'] = !empty($input['nvidia_fallback_enabled']);
+        $next['nvidia_model'] = sanitize_text_field((string) ($input['nvidia_model'] ?? 'meta/llama-3.3-70b-instruct'));
+        if ($next['nvidia_model'] === '') {
+            $next['nvidia_model'] = 'meta/llama-3.3-70b-instruct';
         }
 
         $models = array_keys(self::models());

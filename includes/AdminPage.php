@@ -58,7 +58,9 @@ final class AdminPage
         $jobs = (new JobRepository())->latest(30);
         $hasActiveJobs = array_filter($jobs, static fn (array $job): bool => in_array((string) ($job['status'] ?? ''), ['queued', 'running', 'failed_retryable'], true)) !== [];
         $strategy = get_option('dsap_strategy_plan', []);
-        $hasKey = Settings::apiKey() !== '';
+        $hasOpenAiKey = Settings::apiKey() !== '';
+        $hasNvidiaKey = Settings::nvidiaApiKey() !== '';
+        $hasKey = $hasOpenAiKey || $hasNvidiaKey;
         $hasGoogleSecret = (string) $settings['gsc_client_secret'] !== '';
         $gscConnected = GoogleOAuth::connected();
         $lastSync = get_option('dsap_gsc_last_sync', []);
@@ -112,7 +114,10 @@ final class AdminPage
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <?php wp_nonce_field('dsap_save_api_key'); ?>
                         <input type="hidden" name="action" value="dsap_save_api_key">
-                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>">
+                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'OpenAI APIキー'); ?>">
+                        <p class="description">OpenAIの利用枠が尽きた時の予備として、NVIDIA APIキーも保存できます。</p>
+                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? 'NVIDIA設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>">
+                        <label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時にNVIDIAへ自動切替</label>
                         <?php submit_button($hasKey ? 'APIキーを更新' : 'APIキーを保存', 'primary', 'submit', false); ?>
                     </form>
                 </div>
@@ -165,12 +170,12 @@ final class AdminPage
                 <div class="dsap-panel">
                     <h2>実行前チェック</h2>
                     <div class="dsap-setup-checks">
-                        <span class="<?php echo $hasKey ? 'is-done' : 'is-needed'; ?>">OpenAI APIキー: <?php echo esc_html($hasKey ? '設定済み' : '未設定'); ?></span>
+                        <span class="<?php echo $hasKey ? 'is-done' : 'is-needed'; ?>">AI APIキー: <?php echo esc_html($hasKey ? '設定済み' : '未設定'); ?></span>
                         <span class="<?php echo trim((string) $settings['site_theme']) !== '' ? 'is-done' : 'is-optional'; ?>">サイトテーマ: <?php echo esc_html(trim((string) $settings['site_theme']) !== '' ? '入力済み' : 'AIが補完'); ?></span>
                         <span class="<?php echo trim((string) $settings['conversion_goal']) !== '' ? 'is-done' : 'is-optional'; ?>">CV目標: <?php echo esc_html(trim((string) $settings['conversion_goal']) !== '' ? '入力済み' : 'AIが補完'); ?></span>
                     </div>
                     <?php if (!$hasKey) : ?>
-                        <p class="description">先に「設定」タブでOpenAI APIキーを保存してください。保存後にこのタブへ戻って自動初期設定を実行します。</p>
+                        <p class="description">先にOpenAI APIキーまたはNVIDIA APIキーを保存してください。保存後にこのタブへ戻って自動初期設定を実行します。</p>
                     <?php endif; ?>
                 </div>
 
@@ -308,7 +313,10 @@ final class AdminPage
                         <div class="dsap-advanced">
                             <h3>詳細設定</h3>
                             <table class="form-table" role="presentation">
-                                <tr><th><label for="dsap-key">OpenAI APIキー</label></th><td><input id="dsap-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>"><p class="description">保存済みキーは画面に再表示しません。</p></td></tr>
+                                <tr><th><label for="dsap-key">OpenAI APIキー</label></th><td><input id="dsap-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>"><p class="description">保存済みキーは画面に再表示しません。</p></td></tr>
+                                <tr><th><label for="dsap-nvidia-key">NVIDIA APIキー</label></th><td><input id="dsap-nvidia-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>"> <?php if ($hasNvidiaKey) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_nvidia_api_key]" value="1"> 保存済みNVIDIAキーを削除</label><?php endif; ?><p class="description">OpenAIのquota超過時だけ自動でNVIDIAへ切り替えます。</p></td></tr>
+                                <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時に有効</label></td></tr>
+                                <tr><th><label for="dsap-nvidia-model">NVIDIAモデル</label></th><td><input id="dsap-nvidia-model" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_model]" value="<?php echo esc_attr((string) $settings['nvidia_model']); ?>" class="regular-text"><p class="description">NVIDIA API CatalogのモデルIDを入力します。</p></td></tr>
                                 <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
                                 <tr><th>リサーチ・執筆モデル</th><td><?php self::modelSelect('model_research', (string) $settings['model_research']); ?></td></tr>
                                 <tr><th>監査モデル</th><td><?php self::modelSelect('model_audit', (string) $settings['model_audit']); ?></td></tr>
@@ -338,7 +346,7 @@ final class AdminPage
                         <?php submit_button('設定を保存'); ?>
                     </form>
                     <div class="dsap-actions dsap-settings-actions">
-                        <?php if ($hasKey) : ?><?php self::actionForm('dsap_delete_api_key', 'APIキーを削除', 'delete'); ?><?php endif; ?>
+                        <?php if ($hasOpenAiKey) : ?><?php self::actionForm('dsap_delete_api_key', 'OpenAI APIキーを削除', 'delete'); ?><?php endif; ?>
                         <?php self::actionForm('dsap_check_github_updates', 'GitHub更新を確認', 'secondary'); ?>
                         <?php self::actionForm('dsap_install_github_update', 'GitHubから今すぐ更新', 'primary'); ?>
                     </div>
@@ -395,14 +403,21 @@ final class AdminPage
         self::guard('dsap_save_api_key');
         $input = is_array($_POST[Settings::OPTION] ?? null) ? wp_unslash($_POST[Settings::OPTION]) : [];
         $apiKey = trim((string) ($input['openai_api_key'] ?? ''));
-        if ($apiKey === '') {
-            self::redirect(Settings::apiKey() !== '' ? 'APIキーは設定済みです。変更する場合だけ新しいキーを入力してください。' : 'OpenAI APIキーを入力してください。');
+        $nvidiaKey = trim((string) ($input['nvidia_api_key'] ?? ''));
+        if ($apiKey === '' && $nvidiaKey === '') {
+            self::redirect(Settings::apiKey() !== '' || Settings::nvidiaApiKey() !== '' ? 'APIキーは設定済みです。変更する場合だけ新しいキーを入力してください。' : 'OpenAI APIキーまたはNVIDIA APIキーを入力してください。');
         }
 
         $settings = Settings::get();
-        $settings['openai_api_key'] = $apiKey;
+        if ($apiKey !== '') {
+            $settings['openai_api_key'] = $apiKey;
+        }
+        if ($nvidiaKey !== '') {
+            $settings['nvidia_api_key'] = $nvidiaKey;
+        }
+        $settings['nvidia_fallback_enabled'] = !empty($input['nvidia_fallback_enabled']);
         update_option(Settings::OPTION, $settings, false);
-        self::redirect('OpenAI APIキーを保存しました。次に自動初期設定を実行してください。');
+        self::redirect('AI APIキーを保存しました。次に自動初期設定を実行してください。');
     }
 
     public static function saveQuality(): void
@@ -435,8 +450,8 @@ final class AdminPage
     public static function autoSetup(): void
     {
         self::guard('dsap_auto_setup');
-        if (Settings::apiKey() === '') {
-            self::redirect('先にOpenAI APIキーを保存してください。その後に自動初期設定を実行できます。');
+        if (Settings::apiKey() === '' && Settings::nvidiaApiKey() === '') {
+            self::redirect('先にOpenAI APIキーまたはNVIDIA APIキーを保存してください。その後に自動初期設定を実行できます。');
         }
 
         $settings = Settings::get();

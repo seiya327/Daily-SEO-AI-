@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.5
+Stable tag: 0.6.6
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -15,6 +15,7 @@ This initial implementation includes:
 
 * WordPress admin settings page.
 * API key entry in WordPress admin. Existing keys are never printed back to HTML.
+* Optional NVIDIA API fallback when OpenAI quota is exhausted.
 * Mock mode for testing without an API key.
 * AI-generated attraction-to-conversion content strategy and topic queue.
 * Model dropdowns, daily article count, funnel ratio, affiliate CTA settings, and a safe test run.
@@ -56,6 +57,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests only the webmasters.readonly scope. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.6 =
+Added optional NVIDIA API fallback for OpenAI quota exhaustion, including admin settings, key storage, and an OpenAI-to-NVIDIA client failover path.
 
 = 0.6.5 =
 Classified OpenAI quota exhaustion separately so the pipeline stops retrying immediately and shows billing guidance.
