@@ -72,6 +72,11 @@ final class Settings
             'meta/llama-3.1-405b-instruct' => 'Llama 3.1 405B Instruct',
             'meta/llama-3.1-70b-instruct' => 'Llama 3.1 70B Instruct',
             'mistralai/mixtral-8x22b-instruct-v0.1' => 'Mixtral 8x22B Instruct',
+            'deepseek-ai/deepseek-r1' => 'DeepSeek R1（NVIDIA提供時）',
+            'deepseek-ai/deepseek-v3' => 'DeepSeek V3（NVIDIA提供時）',
+            'deepseek-ai/deepseek-r1-distill-llama-70b' => 'DeepSeek R1 Distill Llama 70B（NVIDIA提供時）',
+            'zai-org/glm-4.5' => 'GLM-4.5（NVIDIA提供時）',
+            'zai-org/glm-4.5-air' => 'GLM-4.5 Air（NVIDIA提供時）',
             'microsoft/phi-3-medium-128k-instruct' => 'Phi-3 Medium 128K Instruct',
             'google/gemma-2-27b-it' => 'Gemma 2 27B IT',
         ];
