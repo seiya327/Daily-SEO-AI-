@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.3
+Stable tag: 0.6.4
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -56,6 +56,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests only the webmasters.readonly scope. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.4 =
+Limited model selection to GPT-5.6 Luna, GPT-5.6 Terra, GPT-5 mini, GPT-5.4 mini, and GPT-5 nano. Removed Sol from automatic quality presets and migrated unsupported saved models to cost-conscious defaults.
 
 = 0.6.3 =
 Moved long-running strategy generation to resumable OpenAI background responses, added progress polling and automatic admin refresh, and fixed retrying permanently failed jobs.

@@ -52,11 +52,11 @@ final class Settings
     public static function models(): array
     {
         return [
-            'gpt-5.6-sol' => 'GPT-5.6 Sol（品質優先）',
-            'gpt-5.6-terra' => 'GPT-5.6 Terra（品質とコストのバランス）',
-            'gpt-5.6-luna' => 'GPT-5.6 Luna（コスト優先）',
-            'gpt-5.5' => 'GPT-5.5（改善候補）',
-            'gpt-5.4-mini' => 'GPT-5.4 mini（低コスト）',
+            'gpt-5.6-luna' => 'GPT-5.6 Luna',
+            'gpt-5.6-terra' => 'GPT-5.6 Terra',
+            'gpt-5-mini' => 'GPT-5 mini',
+            'gpt-5.4-mini' => 'GPT-5.4 mini',
+            'gpt-5-nano' => 'GPT-5 nano',
         ];
     }
 
@@ -68,7 +68,7 @@ final class Settings
                 'min_words' => 1800,
                 'audit_score' => 80,
                 'max_revisions' => 1,
-                'model_research' => 'gpt-5.6-terra',
+                'model_research' => 'gpt-5.6-luna',
                 'model_audit' => 'gpt-5.6-luna',
                 'instruction' => '読みやすさとSEO基本要件を満たす。一般論だけで終わらせず、見出しごとに要点、理由、具体例を入れる。',
             ],
@@ -77,8 +77,8 @@ final class Settings
                 'min_words' => 3000,
                 'audit_score' => 85,
                 'max_revisions' => 2,
-                'model_research' => 'gpt-5.6-sol',
-                'model_audit' => 'gpt-5.6-terra',
+                'model_research' => 'gpt-5.6-terra',
+                'model_audit' => 'gpt-5.6-luna',
                 'instruction' => '専門家が監修したような実用記事にする。手順、判断基準、比較、失敗例、注意点、読者が次に取る行動を必ず入れる。薄い要約、同じ意味の繰り返し、根拠のない断定は禁止。',
             ],
             'premium' => [
@@ -86,8 +86,8 @@ final class Settings
                 'min_words' => 4500,
                 'audit_score' => 90,
                 'max_revisions' => 2,
-                'model_research' => 'gpt-5.6-sol',
-                'model_audit' => 'gpt-5.6-sol',
+                'model_research' => 'gpt-5.6-terra',
+                'model_audit' => 'gpt-5.6-terra',
                 'instruction' => '検索上位を狙う柱記事として作る。読者の前提知識、比較表に相当する観点、具体的な選び方、ケース別の結論、よくある誤解、内部リンク前提、CVへの自然な導線まで設計する。独自性のない文章、抽象論、水増しは禁止。',
             ],
         ];
@@ -129,13 +129,31 @@ final class Settings
             add_option(self::OPTION, self::defaults(), '', false);
             return;
         }
-        update_option(self::OPTION, array_merge(self::defaults(), $current), false);
+        update_option(self::OPTION, self::normalizeModels(array_merge(self::defaults(), $current)), false);
     }
 
     public static function get(): array
     {
         $settings = get_option(self::OPTION, []);
-        return array_merge(self::defaults(), is_array($settings) ? $settings : []);
+        return self::normalizeModels(array_merge(self::defaults(), is_array($settings) ? $settings : []));
+    }
+
+    private static function normalizeModels(array $settings): array
+    {
+        $allowed = array_keys(self::models());
+        $fallbacks = [
+            'model_research' => 'gpt-5.6-terra',
+            'model_audit' => 'gpt-5.6-luna',
+            'model_refresh' => 'gpt-5.6-terra',
+        ];
+
+        foreach ($fallbacks as $key => $fallback) {
+            if (!in_array((string) ($settings[$key] ?? ''), $allowed, true)) {
+                $settings[$key] = $fallback;
+            }
+        }
+
+        return $settings;
     }
 
     public static function apiKey(): string
