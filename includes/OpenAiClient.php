@@ -83,8 +83,12 @@ final class OpenAiClient implements AiClientInterface
         $json = json_decode($raw, true);
         if ($code < 200 || $code >= 300) {
             $message = is_array($json) && isset($json['error']['message']) ? (string) $json['error']['message'] : 'OpenAI request failed.';
+            $errorCode = is_array($json) && isset($json['error']['code']) ? (string) $json['error']['code'] : '';
             if ($retrieval && $code === 404) {
                 return new \WP_Error('dsap_openai_response_missing', 'OpenAIのバックグラウンド結果を取得できませんでした。保存期間を過ぎた可能性があるため、新しい生成を予約します。', ['status' => $code]);
+            }
+            if ($this->isQuotaError($message . ' ' . $errorCode)) {
+                return $this->quotaError($code);
             }
             return new \WP_Error(in_array($code, [408, 409, 429, 500, 502, 503, 504], true) ? 'dsap_openai_retryable' : 'dsap_openai_permanent', $message, ['status' => $code]);
         }
@@ -107,6 +111,10 @@ final class OpenAiClient implements AiClientInterface
         }
         if ($background && $status !== '' && $status !== 'completed') {
             $message = (string) ($json['error']['message'] ?? $json['incomplete_details']['reason'] ?? $status);
+            $errorCode = (string) ($json['error']['code'] ?? '');
+            if ($this->isQuotaError($message . ' ' . $errorCode)) {
+                return $this->quotaError(200);
+            }
             return new \WP_Error('dsap_openai_background_failed', 'OpenAIバックグラウンド処理が完了しませんでした: ' . $message, ['status' => $status]);
         }
 
@@ -127,6 +135,20 @@ final class OpenAiClient implements AiClientInterface
             'response_id' => $responseId,
             'status' => $status,
         ];
+    }
+
+    private function isQuotaError(string $message): bool
+    {
+        return preg_match('/insufficient[_ ]quota|exceeded your current quota|billing quota|quota.{0,24}(exceed|limit)|credits?.{0,24}(exhaust|deplet|run out)/i', $message) === 1;
+    }
+
+    private function quotaError(int $status): \WP_Error
+    {
+        return new \WP_Error(
+            'dsap_openai_quota',
+            'OpenAI APIの利用枠を超えています。Billingで支払い方法・残高・月額上限を確認してください。ChatGPTの契約とは別管理です: https://platform.openai.com/settings/organization/billing',
+            ['status' => $status]
+        );
     }
 
     private function headers(): array
