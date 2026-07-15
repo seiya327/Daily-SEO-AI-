@@ -118,6 +118,7 @@ final class AdminPage
                         <p class="description">OpenAIの利用枠が尽きた時の予備として、NVIDIA APIキーも保存できます。</p>
                         <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? 'NVIDIA設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>">
                         <label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時にNVIDIAへ自動切替</label>
+                        <p><?php self::nvidiaModelSelect((string) $settings['nvidia_model'], 'setup'); ?></p>
                         <?php submit_button($hasKey ? 'APIキーを更新' : 'APIキーを保存', 'primary', 'submit', false); ?>
                     </form>
                 </div>
@@ -316,7 +317,7 @@ final class AdminPage
                                 <tr><th><label for="dsap-key">OpenAI APIキー</label></th><td><input id="dsap-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>"><p class="description">保存済みキーは画面に再表示しません。</p></td></tr>
                                 <tr><th><label for="dsap-nvidia-key">NVIDIA APIキー</label></th><td><input id="dsap-nvidia-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>"> <?php if ($hasNvidiaKey) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_nvidia_api_key]" value="1"> 保存済みNVIDIAキーを削除</label><?php endif; ?><p class="description">OpenAIのquota超過時だけ自動でNVIDIAへ切り替えます。</p></td></tr>
                                 <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時に有効</label></td></tr>
-                                <tr><th><label for="dsap-nvidia-model">NVIDIAモデル</label></th><td><input id="dsap-nvidia-model" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_model]" value="<?php echo esc_attr((string) $settings['nvidia_model']); ?>" class="regular-text"><p class="description">NVIDIA API CatalogのモデルIDを入力します。</p></td></tr>
+                                <tr><th>NVIDIAモデル</th><td><?php self::nvidiaModelSelect((string) $settings['nvidia_model']); ?><p class="description">通常はプルダウンから選んでください。候補にないモデルだけカスタムIDを入力します。</p></td></tr>
                                 <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
                                 <tr><th>リサーチ・執筆モデル</th><td><?php self::modelSelect('model_research', (string) $settings['model_research']); ?></td></tr>
                                 <tr><th>監査モデル</th><td><?php self::modelSelect('model_audit', (string) $settings['model_audit']); ?></td></tr>
@@ -416,6 +417,13 @@ final class AdminPage
             $settings['nvidia_api_key'] = $nvidiaKey;
         }
         $settings['nvidia_fallback_enabled'] = !empty($input['nvidia_fallback_enabled']);
+        $preset = sanitize_text_field((string) ($input['nvidia_model_preset'] ?? ''));
+        $custom = sanitize_text_field((string) ($input['nvidia_model_custom'] ?? ''));
+        if ($custom !== '') {
+            $settings['nvidia_model'] = $custom;
+        } elseif ($preset !== '') {
+            $settings['nvidia_model'] = $preset;
+        }
         update_option(Settings::OPTION, $settings, false);
         self::redirect('AI APIキーを保存しました。次に自動初期設定を実行してください。');
     }
@@ -764,6 +772,20 @@ final class AdminPage
             echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
+    }
+
+    private static function nvidiaModelSelect(string $current, string $suffix = 'settings'): void
+    {
+        $models = Settings::nvidiaModels();
+        $isCustom = !array_key_exists($current, $models);
+        $idSuffix = sanitize_key($suffix) ?: 'settings';
+        echo '<select id="dsap-nvidia-model-preset-' . esc_attr($idSuffix) . '" name="' . esc_attr(Settings::OPTION) . '[nvidia_model_preset]">';
+        foreach ($models as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected(!$isCustom && $current === $value, true, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '<option value="" ' . selected($isCustom, true, false) . '>カスタムモデルID</option>';
+        echo '</select> ';
+        echo '<input id="dsap-nvidia-model-custom-' . esc_attr($idSuffix) . '" name="' . esc_attr(Settings::OPTION) . '[nvidia_model_custom]" value="' . esc_attr($isCustom ? $current : '') . '" class="regular-text" placeholder="例: provider/model-id">';
     }
 
     private static function qualitySelect(string $current, string $name = 'article_quality'): void

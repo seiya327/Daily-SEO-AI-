@@ -63,6 +63,20 @@ final class Settings
         ];
     }
 
+    public static function nvidiaModels(): array
+    {
+        return [
+            'meta/llama-3.3-70b-instruct' => 'Llama 3.3 70B Instruct',
+            'nvidia/llama-3.3-nemotron-super-49b-v1' => 'NVIDIA Nemotron Super 49B',
+            'nvidia/llama-3.1-nemotron-70b-instruct' => 'NVIDIA Nemotron 70B Instruct',
+            'meta/llama-3.1-405b-instruct' => 'Llama 3.1 405B Instruct',
+            'meta/llama-3.1-70b-instruct' => 'Llama 3.1 70B Instruct',
+            'mistralai/mixtral-8x22b-instruct-v0.1' => 'Mixtral 8x22B Instruct',
+            'microsoft/phi-3-medium-128k-instruct' => 'Phi-3 Medium 128K Instruct',
+            'google/gemma-2-27b-it' => 'Gemma 2 27B IT',
+        ];
+    }
+
     public static function qualityProfiles(): array
     {
         return [
@@ -155,6 +169,9 @@ final class Settings
                 $settings[$key] = $fallback;
             }
         }
+        if (trim((string) ($settings['nvidia_model'] ?? '')) === '') {
+            $settings['nvidia_model'] = 'meta/llama-3.3-70b-instruct';
+        }
 
         return $settings;
     }
@@ -211,7 +228,10 @@ final class Settings
             $next['nvidia_api_key'] = (string) ($old['nvidia_api_key'] ?? '');
         }
         $next['nvidia_fallback_enabled'] = !empty($input['nvidia_fallback_enabled']);
-        $next['nvidia_model'] = sanitize_text_field((string) ($input['nvidia_model'] ?? 'meta/llama-3.3-70b-instruct'));
+        $preset = sanitize_text_field((string) ($input['nvidia_model_preset'] ?? ''));
+        $custom = sanitize_text_field((string) ($input['nvidia_model_custom'] ?? ''));
+        $legacy = sanitize_text_field((string) ($input['nvidia_model'] ?? ''));
+        $next['nvidia_model'] = $custom !== '' ? $custom : ($preset !== '' ? $preset : ($legacy !== '' ? $legacy : 'meta/llama-3.3-70b-instruct'));
         if ($next['nvidia_model'] === '') {
             $next['nvidia_model'] = 'meta/llama-3.3-70b-instruct';
         }
