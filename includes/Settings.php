@@ -14,7 +14,7 @@ final class Settings
             'openai_api_key' => '',
             'nvidia_api_key' => '',
             'nvidia_fallback_enabled' => true,
-            'nvidia_model' => 'meta/llama-3.3-70b-instruct',
+            'nvidia_model' => 'nvidia/llama-3.3-nemotron-super-49b-v1',
             'model_research' => 'gpt-5.6-terra',
             'model_audit' => 'gpt-5.6-luna',
             'model_refresh' => 'gpt-5.6-terra',
@@ -66,19 +66,24 @@ final class Settings
     public static function nvidiaModels(): array
     {
         return [
-            'meta/llama-3.3-70b-instruct' => 'Llama 3.3 70B Instruct',
             'nvidia/llama-3.3-nemotron-super-49b-v1' => 'NVIDIA Nemotron Super 49B',
-            'nvidia/llama-3.1-nemotron-70b-instruct' => 'NVIDIA Nemotron 70B Instruct',
             'meta/llama-3.1-405b-instruct' => 'Llama 3.1 405B Instruct',
-            'meta/llama-3.1-70b-instruct' => 'Llama 3.1 70B Instruct',
-            'mistralai/mixtral-8x22b-instruct-v0.1' => 'Mixtral 8x22B Instruct',
             'deepseek-ai/deepseek-r1' => 'DeepSeek R1（NVIDIA提供時）',
             'deepseek-ai/deepseek-v3' => 'DeepSeek V3（NVIDIA提供時）',
             'deepseek-ai/deepseek-r1-distill-llama-70b' => 'DeepSeek R1 Distill Llama 70B（NVIDIA提供時）',
             'zai-org/glm-4.5' => 'GLM-4.5（NVIDIA提供時）',
             'zai-org/glm-4.5-air' => 'GLM-4.5 Air（NVIDIA提供時）',
-            'microsoft/phi-3-medium-128k-instruct' => 'Phi-3 Medium 128K Instruct',
-            'google/gemma-2-27b-it' => 'Gemma 2 27B IT',
+        ];
+    }
+
+    public static function preferredNvidiaModels(): array
+    {
+        return [
+            'nvidia/llama-3.3-nemotron-super-49b-v1' => 'NVIDIA Nemotron Super 49B',
+            'meta/llama-3.1-405b-instruct' => 'Llama 3.1 405B Instruct',
+            'deepseek-ai/deepseek-r1' => 'DeepSeek R1',
+            'deepseek-ai/deepseek-v3' => 'DeepSeek V3',
+            'zai-org/glm-4.5' => 'GLM-4.5',
         ];
     }
 
@@ -175,7 +180,7 @@ final class Settings
             }
         }
         if (trim((string) ($settings['nvidia_model'] ?? '')) === '') {
-            $settings['nvidia_model'] = 'meta/llama-3.3-70b-instruct';
+            $settings['nvidia_model'] = 'nvidia/llama-3.3-nemotron-super-49b-v1';
         }
 
         return $settings;
@@ -236,9 +241,9 @@ final class Settings
         $preset = sanitize_text_field((string) ($input['nvidia_model_preset'] ?? ''));
         $custom = sanitize_text_field((string) ($input['nvidia_model_custom'] ?? ''));
         $legacy = sanitize_text_field((string) ($input['nvidia_model'] ?? ''));
-        $next['nvidia_model'] = $custom !== '' ? $custom : ($preset !== '' ? $preset : ($legacy !== '' ? $legacy : 'meta/llama-3.3-70b-instruct'));
+        $next['nvidia_model'] = $custom !== '' ? $custom : ($preset !== '' ? $preset : ($legacy !== '' ? $legacy : 'nvidia/llama-3.3-nemotron-super-49b-v1'));
         if ($next['nvidia_model'] === '') {
-            $next['nvidia_model'] = 'meta/llama-3.3-70b-instruct';
+            $next['nvidia_model'] = 'nvidia/llama-3.3-nemotron-super-49b-v1';
         }
 
         $models = array_keys(self::models());

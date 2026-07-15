@@ -776,7 +776,7 @@ final class AdminPage
 
     private static function nvidiaModelSelect(string $current, string $suffix = 'settings'): void
     {
-        $models = Settings::nvidiaModels();
+        $models = Settings::preferredNvidiaModels();
         $isCustom = !array_key_exists($current, $models);
         $idSuffix = sanitize_key($suffix) ?: 'settings';
         echo '<select id="dsap-nvidia-model-preset-' . esc_attr($idSuffix) . '" name="' . esc_attr(Settings::OPTION) . '[nvidia_model_preset]">';

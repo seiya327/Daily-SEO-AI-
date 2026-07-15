@@ -12,7 +12,7 @@ final class NvidiaAiClient implements AiClientInterface
     public function __construct(string $apiKey, string $model)
     {
         $this->apiKey = $apiKey;
-        $this->model = $model !== '' ? $model : 'meta/llama-3.3-70b-instruct';
+        $this->model = $model !== '' ? $model : 'nvidia/llama-3.3-nemotron-super-49b-v1';
     }
 
     public function respond(string $schemaName, array $schema, string $prompt, bool $webSearch = false, string $model = '', bool $background = false, string $responseId = ''): array|\WP_Error
