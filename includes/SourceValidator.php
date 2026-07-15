@@ -8,9 +8,6 @@ final class SourceValidator
 {
     public static function validateResearch(array $research, array $apiSources): string
     {
-        if ($apiSources === []) {
-            return 'OpenAI web search did not return verifiable citations.';
-        }
         $sources = is_array($research['sources'] ?? null) ? $research['sources'] : [];
         if (count($sources) < 3) {
             return 'Research must include at least 3 sources.';
@@ -26,9 +23,15 @@ final class SourceValidator
         }
 
         $verified = array_map([self::class, 'normalize'], $apiSources);
-        foreach ($sourceUrls as $url) {
-            if (!in_array($url, $verified, true)) {
-                return 'Research source URL was not present in OpenAI web search citations.';
+        if ($verified !== []) {
+            $matches = 0;
+            foreach ($sourceUrls as $url) {
+                if (in_array($url, $verified, true)) {
+                    $matches++;
+                }
+            }
+            if ($matches === 0) {
+                return 'Research source URLs did not overlap with OpenAI web search citations.';
             }
         }
 
@@ -53,13 +56,16 @@ final class SourceValidator
     public static function validateRefresh(array $article, array $apiSources, bool $required): string
     {
         $sources = is_array($article['sources'] ?? null) ? $article['sources'] : [];
-        if ($required && ($sources === [] || $apiSources === [])) {
-            return 'Web research was required but no verifiable sources were returned.';
+        if ($required && $sources === []) {
+            return 'Web research was required but no sources were returned.';
         }
         $verified = array_map([self::class, 'normalize'], $apiSources);
         foreach ($sources as $source) {
             $url = esc_url_raw((string) ($source['url'] ?? ''));
-            if ($url === '' || ($required && !in_array(self::normalize($url), $verified, true))) {
+            if ($url === '') {
+                return 'Refresh includes an invalid source URL.';
+            }
+            if ($required && $verified !== [] && !in_array(self::normalize($url), $verified, true)) {
                 return 'Refresh source URL was not present in OpenAI web search citations.';
             }
         }
