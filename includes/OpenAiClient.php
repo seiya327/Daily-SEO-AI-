@@ -31,7 +31,7 @@ final class OpenAiClient implements AiClientInterface
             'reasoning' => [
                 'effort' => in_array($schemaName, ['strategy_v1', 'audit_v1'], true) ? 'high' : 'medium',
             ],
-            'max_output_tokens' => in_array($schemaName, ['article_v1', 'refresh_article_v1'], true) ? 24000 : 12000,
+            'max_output_tokens' => $this->maxOutputTokens($schemaName),
             'input' => [
                 [
                     'role' => 'developer',
@@ -115,12 +115,18 @@ final class OpenAiClient implements AiClientInterface
             if ($this->isQuotaError($message . ' ' . $errorCode)) {
                 return $this->quotaError(200);
             }
+            if ($this->isOutputLimitError($message)) {
+                return $this->outputLimitError(200);
+            }
             return new \WP_Error('dsap_openai_background_failed', 'OpenAIバックグラウンド処理が完了しませんでした: ' . $message, ['status' => $status]);
         }
 
         $text = $this->extractOutputText($json);
         if ($text === '') {
             $reason = (string) ($json['incomplete_details']['reason'] ?? $json['status'] ?? 'empty output');
+            if ($this->isOutputLimitError($reason)) {
+                return $this->outputLimitError(200);
+            }
             return new \WP_Error('dsap_openai_empty_output', 'OpenAI did not return structured output: ' . $reason);
         }
         $data = json_decode($text, true);
@@ -142,6 +148,11 @@ final class OpenAiClient implements AiClientInterface
         return preg_match('/insufficient[_ ]quota|exceeded your current quota|billing quota|quota.{0,24}(exceed|limit)|credits?.{0,24}(exhaust|deplet|run out)/i', $message) === 1;
     }
 
+    private function isOutputLimitError(string $message): bool
+    {
+        return preg_match('/max_output_tokens|output token|maximum output|token limit/i', $message) === 1;
+    }
+
     private function quotaError(int $status): \WP_Error
     {
         return new \WP_Error(
@@ -149,6 +160,24 @@ final class OpenAiClient implements AiClientInterface
             'OpenAI APIの利用枠を超えています。Billingで支払い方法・残高・月額上限を確認してください。ChatGPTの契約とは別管理です: https://platform.openai.com/settings/organization/billing',
             ['status' => $status]
         );
+    }
+
+    private function outputLimitError(int $status): \WP_Error
+    {
+        return new \WP_Error(
+            'dsap_openai_output_limit',
+            'OpenAIの出力上限に到達しました。上限を増やして新しいバックグラウンド処理を作り直します。',
+            ['status' => $status]
+        );
+    }
+
+    private function maxOutputTokens(string $schemaName): int
+    {
+        return match ($schemaName) {
+            'strategy_v1', 'article_v1', 'refresh_article_v1' => 30000,
+            'audit_v1', 'refresh_plan_v1' => 16000,
+            default => 12000,
+        };
     }
 
     private function headers(): array
