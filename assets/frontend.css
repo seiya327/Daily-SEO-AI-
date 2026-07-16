@@ -1,5 +1,4 @@
 .dsap-visual-lead,
-.dsap-visual-chart,
 .dsap-related,
 .dsap-references,
 .dsap-cta {
@@ -109,58 +108,48 @@
     font-weight: 700;
 }
 
-.dsap-visual-chart {
-    padding: 1.35rem;
-    border: 1px solid #d8e1ea;
+.entry-content h2,
+.wp-block-post-content h2 {
+    margin-top: 2.4rem;
+    padding: .75rem .95rem;
+    border-left: 6px solid #1f8a70;
+    background: #eef8f5;
+    color: #17324d;
+}
+
+.entry-content h3,
+.wp-block-post-content h3 {
+    margin-top: 1.8rem;
+    padding-bottom: .35rem;
+    border-bottom: 2px solid #f2b84b;
+    color: #244c66;
+}
+
+.entry-content p,
+.entry-content li,
+.wp-block-post-content p,
+.wp-block-post-content li {
+    line-height: 1.9;
+}
+
+.entry-content ul,
+.entry-content ol,
+.wp-block-post-content ul,
+.wp-block-post-content ol {
+    padding: 1rem 1.2rem 1rem 2rem;
     background: #fbfcfd;
+    border: 1px solid #e4ebf1;
 }
 
-.dsap-visual-chart h2 {
-    margin-top: 0;
+.entry-content li::marker,
+.wp-block-post-content li::marker {
+    color: #d95d39;
+    font-weight: 700;
 }
 
-.dsap-meter-row {
-    display: grid;
-    grid-template-columns: 12rem minmax(0, 1fr);
-    gap: 1rem;
-    align-items: center;
-    margin-top: .85rem;
-}
-
-.dsap-meter-row strong,
-.dsap-meter-row span {
-    display: block;
-}
-
-.dsap-meter-row span {
-    color: #5a6774;
-    font-size: .85rem;
-}
-
-.dsap-meter {
-    height: 12px;
-    overflow: hidden;
-    background: #e7edf2;
-}
-
-.dsap-meter span {
-    display: block;
-    height: 100%;
-    background: #d95d39;
-}
-
-.dsap-meter.is-low span {
-    width: 38%;
-}
-
-.dsap-meter.is-mid span {
-    width: 68%;
-    background: #f2b84b;
-}
-
-.dsap-meter.is-high span {
-    width: 92%;
-    background: #1f8a70;
+.entry-content strong,
+.wp-block-post-content strong {
+    color: #17324d;
 }
 
 .entry-content table,
@@ -217,8 +206,7 @@
 }
 
 @media (max-width: 720px) {
-    .dsap-visual-lead,
-    .dsap-meter-row {
+    .dsap-visual-lead {
         grid-template-columns: 1fr;
     }
 
