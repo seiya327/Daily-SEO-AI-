@@ -44,7 +44,10 @@ final class Publisher
             $decision['post_status'] = 'draft';
             update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
         }
-        $content = wp_kses_post((string) ($article['content_html'] ?? ''));
+        $body = wp_kses_post((string) ($article['content_html'] ?? ''));
+        $content = $this->visualLead($article, $research, $funnel);
+        $content .= $body;
+        $content .= $this->visualChart($article, $research, $payload);
         $content .= $this->relatedLinks($article);
         $content .= $this->references($article, $research);
         $content .= $cta['html'];
@@ -153,6 +156,73 @@ final class Publisher
             return '';
         }
         return '<section class="dsap-references"><h2>参考資料</h2><ul>' . implode('', $items) . '</ul></section>';
+    }
+
+    private function visualLead(array $article, array $research, array $funnel): string
+    {
+        $keyword = sanitize_text_field((string) ($article['focus_keyword'] ?? $research['primary_keyword'] ?? $funnel['target_keyword'] ?? ''));
+        $excerpt = sanitize_text_field((string) ($article['excerpt'] ?? ''));
+        $type = ($funnel['article_type'] ?? 'attraction') === 'cv' ? 'CV記事' : '集客記事';
+        $role = sanitize_text_field((string) ($funnel['content_role'] ?? ''));
+        $sources = is_array($research['sources'] ?? null) ? count($research['sources']) : 0;
+        $facts = is_array($research['facts'] ?? null) ? count($research['facts']) : 0;
+        $angle = sanitize_text_field((string) ($funnel['entry_angle'] ?? ''));
+
+        $badges = [
+            '<span>' . esc_html($type) . '</span>',
+            $role !== '' ? '<span>' . esc_html($role) . '</span>' : '',
+            $sources > 0 ? '<span>参照元 ' . esc_html((string) $sources) . '件</span>' : '',
+        ];
+        $badges = implode('', array_filter($badges));
+
+        $items = [];
+        if ($keyword !== '') {
+            $items[] = '<li><strong>狙う検索意図</strong><span>' . esc_html($keyword) . '</span></li>';
+        }
+        if ($angle !== '') {
+            $items[] = '<li><strong>入口</strong><span>' . esc_html($angle) . '</span></li>';
+        }
+        if ($facts > 0) {
+            $items[] = '<li><strong>根拠</strong><span>調査ファクト ' . esc_html((string) $facts) . '件を反映</span></li>';
+        }
+
+        return '<section class="dsap-visual-lead"><div class="dsap-visual-copy"><div class="dsap-badges">' . $badges . '</div><p class="dsap-visual-summary">' . esc_html($excerpt) . '</p><ul class="dsap-keypoints">' . implode('', $items) . '</ul></div><figure class="dsap-visual-figure"><div class="dsap-figure-mark"><span></span><span></span><span></span></div><figcaption>この記事の判断ポイント</figcaption></figure></section>';
+    }
+
+    private function visualChart(array $article, array $research, array $payload): string
+    {
+        $html = (string) ($article['content_html'] ?? '');
+        preg_match_all('/<h2\b[^>]*>/i', $html, $h2Matches);
+        $sourceCount = is_array($research['sources'] ?? null) ? count($research['sources']) : 0;
+        $linkCount = is_array($article['internal_link_post_ids'] ?? null) ? count($article['internal_link_post_ids']) : 0;
+        $decision = is_array($payload['publish_decision'] ?? null) ? $payload['publish_decision'] : [];
+        $score = max(0, min(100, (int) ($decision['score'] ?? 0)));
+        $h2Count = count($h2Matches[0] ?? []);
+
+        $rows = [
+            ['label' => '根拠の量', 'value' => $sourceCount . ' source', 'class' => $this->levelClass($sourceCount, 3, 6)],
+            ['label' => '構成の深さ', 'value' => $h2Count . ' section', 'class' => $this->levelClass($h2Count, 4, 7)],
+            ['label' => '内部導線', 'value' => $linkCount . ' link', 'class' => $this->levelClass($linkCount, 1, 3)],
+            ['label' => '品質判定', 'value' => $score > 0 ? $score . '/100' : 'review', 'class' => $this->levelClass($score, 75, 88)],
+        ];
+
+        $htmlRows = '';
+        foreach ($rows as $row) {
+            $htmlRows .= '<div class="dsap-meter-row"><div><strong>' . esc_html($row['label']) . '</strong><span>' . esc_html($row['value']) . '</span></div><div class="dsap-meter ' . esc_attr($row['class']) . '"><span></span></div></div>';
+        }
+
+        return '<section class="dsap-visual-chart"><h2>判断材料の整理</h2><p>本文を読む前に、根拠・構成・導線・品質判定を確認できます。</p>' . $htmlRows . '</section>';
+    }
+
+    private function levelClass(int $value, int $mid, int $high): string
+    {
+        if ($value >= $high) {
+            return 'is-high';
+        }
+        if ($value >= $mid) {
+            return 'is-mid';
+        }
+        return 'is-low';
     }
 
     private function findCvPostUrl(string $targetKeyword, string $cluster): string

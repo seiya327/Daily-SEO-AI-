@@ -28,5 +28,13 @@ final class Plugin
         (new ConversionTracker())->boot();
         (new GitHubUpdater())->boot();
         (new SeoManager())->boot();
+        add_action('wp_enqueue_scripts', [$this, 'frontendAssets']);
+    }
+
+    public function frontendAssets(): void
+    {
+        if (is_singular('post')) {
+            wp_enqueue_style('dsap-frontend', DSAP_URL . 'assets/frontend.css', [], DSAP_VERSION);
+        }
     }
 }

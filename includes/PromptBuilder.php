@@ -53,6 +53,7 @@ final class PromptBuilder
         return self::base($job)
             . "\nTask: Write the complete Japanese WordPress article. Follow the approved outline, but improve the order when it helps the reader reach a decision faster."
             . "\nThe opening must answer the query and identify who the answer applies to. Use cited facts only. Include practical steps, decision criteria, examples, failure patterns, cautions, and a clear conclusion."
+            . "\nVisual readability requirement: include at least one useful comparison table, one ordered checklist or step list, and one compact decision-support section. Use semantic WordPress-safe HTML only: h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, strong, em. Do not use inline styles, scripts, SVG, iframes, forms, or image tags."
             . "\nWrite CTA lead and anchor copy that follows naturally from the resolved objection. Do not include CTA HTML, affiliate HTML, or a references section; the publisher adds approved links."
             . "\nUse internal_link_post_ids only from the supplied candidates. Use an empty array when none are genuinely relevant."
             . "\nKeyword: " . (string) ($payload['research']['primary_keyword'] ?? '')

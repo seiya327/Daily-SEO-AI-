@@ -1,0 +1,232 @@
+.dsap-visual-lead,
+.dsap-visual-chart,
+.dsap-related,
+.dsap-references,
+.dsap-cta {
+    box-sizing: border-box;
+    margin: 2rem 0;
+}
+
+.dsap-visual-lead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 1.25rem;
+    align-items: stretch;
+    padding: 1.5rem;
+    border: 1px solid #d8e1ea;
+    border-left: 6px solid #1f8a70;
+    background: linear-gradient(135deg, #f6fbf9 0%, #ffffff 56%, #f7f3ea 100%);
+}
+
+.dsap-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: .85rem;
+}
+
+.dsap-badges span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: .2rem .65rem;
+    border-radius: 999px;
+    background: #17324d;
+    color: #fff;
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.dsap-visual-summary {
+    margin: 0 0 1rem;
+    font-size: 1.05rem;
+    line-height: 1.8;
+}
+
+.dsap-keypoints {
+    display: grid;
+    gap: .65rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dsap-keypoints li {
+    display: grid;
+    grid-template-columns: 8.5em minmax(0, 1fr);
+    gap: .75rem;
+    padding: .75rem .85rem;
+    background: rgba(255, 255, 255, .76);
+    border: 1px solid #e4ebf1;
+}
+
+.dsap-keypoints strong {
+    color: #17324d;
+}
+
+.dsap-visual-figure {
+    display: grid;
+    place-items: center;
+    margin: 0;
+    min-height: 180px;
+    background: #17324d;
+    color: #fff;
+}
+
+.dsap-figure-mark {
+    display: grid;
+    grid-template-columns: repeat(3, 38px);
+    gap: 9px;
+    align-items: end;
+    min-height: 76px;
+}
+
+.dsap-figure-mark span {
+    display: block;
+    width: 38px;
+    background: #ffd166;
+}
+
+.dsap-figure-mark span:nth-child(1) {
+    height: 38px;
+    background: #7bdff2;
+}
+
+.dsap-figure-mark span:nth-child(2) {
+    height: 58px;
+    background: #f7b267;
+}
+
+.dsap-figure-mark span:nth-child(3) {
+    height: 76px;
+    background: #70c1b3;
+}
+
+.dsap-visual-figure figcaption {
+    margin-top: .75rem;
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+.dsap-visual-chart {
+    padding: 1.35rem;
+    border: 1px solid #d8e1ea;
+    background: #fbfcfd;
+}
+
+.dsap-visual-chart h2 {
+    margin-top: 0;
+}
+
+.dsap-meter-row {
+    display: grid;
+    grid-template-columns: 12rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+    margin-top: .85rem;
+}
+
+.dsap-meter-row strong,
+.dsap-meter-row span {
+    display: block;
+}
+
+.dsap-meter-row span {
+    color: #5a6774;
+    font-size: .85rem;
+}
+
+.dsap-meter {
+    height: 12px;
+    overflow: hidden;
+    background: #e7edf2;
+}
+
+.dsap-meter span {
+    display: block;
+    height: 100%;
+    background: #d95d39;
+}
+
+.dsap-meter.is-low span {
+    width: 38%;
+}
+
+.dsap-meter.is-mid span {
+    width: 68%;
+    background: #f2b84b;
+}
+
+.dsap-meter.is-high span {
+    width: 92%;
+    background: #1f8a70;
+}
+
+.entry-content table,
+.wp-block-post-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: .95rem;
+}
+
+.entry-content th,
+.entry-content td,
+.wp-block-post-content th,
+.wp-block-post-content td {
+    padding: .75rem;
+    border: 1px solid #d8e1ea;
+    vertical-align: top;
+}
+
+.entry-content th,
+.wp-block-post-content th {
+    background: #17324d;
+    color: #fff;
+}
+
+.entry-content tbody tr:nth-child(even),
+.wp-block-post-content tbody tr:nth-child(even) {
+    background: #f7f9fb;
+}
+
+.dsap-related,
+.dsap-references,
+.dsap-cta {
+    padding: 1.25rem;
+    border: 1px solid #d8e1ea;
+    background: #fff;
+}
+
+.dsap-cta {
+    border-left: 6px solid #d95d39;
+    background: #fff7f2;
+}
+
+.dsap-cta a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: .65rem 1rem;
+    background: #d95d39;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+@media (max-width: 720px) {
+    .dsap-visual-lead,
+    .dsap-meter-row {
+        grid-template-columns: 1fr;
+    }
+
+    .dsap-keypoints li {
+        grid-template-columns: 1fr;
+    }
+
+    .dsap-visual-figure {
+        min-height: 150px;
+    }
+}
