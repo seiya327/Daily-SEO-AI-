@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Daily SEO AI Publisher
  * Description: Researches, drafts, audits, and prepares SEO articles with OpenAI from a WordPress admin workflow.
- * Version: 0.6.15
+ * Version: 0.6.16
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Update URI: https://github.com/seiya327/Daily-SEO-AI-
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('DSAP_VERSION', '0.6.15');
+define('DSAP_VERSION', '0.6.16');
 define('DSAP_FILE', __FILE__);
 define('DSAP_DIR', plugin_dir_path(__FILE__));
 define('DSAP_URL', plugin_dir_url(__FILE__));

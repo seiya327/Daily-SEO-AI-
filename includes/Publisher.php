@@ -46,7 +46,7 @@ final class Publisher
             update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
         }
         $body = wp_kses_post((string) ($article['content_html'] ?? ''));
-        $content = $body;
+        $content = $this->addIllustration($body, $article, $funnel);
         $content .= $this->relatedLinks($article);
         $content .= $this->references($article, $research);
         $content .= $cta['html'];
@@ -163,6 +163,42 @@ final class Publisher
             return '';
         }
         return '<section class="dsap-references"><h2>参考資料</h2><ul>' . implode('', $items) . '</ul></section>';
+    }
+
+    private function addIllustration(string $html, array $article, array $funnel): string
+    {
+        $figure = $this->illustration((string) ($article['title'] ?? ''), (string) ($funnel['article_type'] ?? 'attraction'));
+        if ($figure === '') {
+            return $html;
+        }
+
+        $inserted = preg_replace_callback('/(<\/p>)/i', static fn (array $matches): string => (string) $matches[1] . $figure, $html, 1);
+        return is_string($inserted) && $inserted !== $html ? $inserted : $figure . $html;
+    }
+
+    private function illustration(string $title, string $articleType): string
+    {
+        $label = sanitize_text_field($title) !== '' ? sanitize_text_field($title) : 'Article illustration';
+        $accent = $articleType === 'cv' ? '#d95d39' : '#1f8a70';
+        $accentAlt = $articleType === 'cv' ? '#f2b84b' : '#70c1b3';
+        $svg = '<svg class="dsap-illustration-svg" viewBox="0 0 960 360" role="img" aria-label="' . esc_attr($label) . '" xmlns="http://www.w3.org/2000/svg">'
+            . '<rect width="960" height="360" rx="0" fill="#f7f9fb"/>'
+            . '<path d="M0 262 C154 196 277 304 430 238 C560 181 662 154 960 226 L960 360 L0 360 Z" fill="#e7f3ef"/>'
+            . '<path d="M0 294 C183 246 296 327 462 275 C620 226 752 250 960 198 L960 360 L0 360 Z" fill="#f7eedf"/>'
+            . '<circle cx="778" cy="96" r="54" fill="' . esc_attr($accentAlt) . '"/>'
+            . '<rect x="112" y="82" width="238" height="168" rx="18" fill="#ffffff" stroke="#d8e1ea" stroke-width="4"/>'
+            . '<rect x="142" y="116" width="130" height="14" rx="7" fill="' . esc_attr($accent) . '"/>'
+            . '<rect x="142" y="154" width="168" height="12" rx="6" fill="#b9c7d3"/>'
+            . '<rect x="142" y="184" width="122" height="12" rx="6" fill="#d8e1ea"/>'
+            . '<rect x="420" y="122" width="118" height="174" rx="16" fill="' . esc_attr($accent) . '"/>'
+            . '<rect x="562" y="76" width="118" height="220" rx="16" fill="#17324d"/>'
+            . '<rect x="704" y="158" width="118" height="138" rx="16" fill="' . esc_attr($accentAlt) . '"/>'
+            . '<path d="M170 286 L798 286" stroke="#17324d" stroke-width="8" stroke-linecap="round"/>'
+            . '<circle cx="214" cy="286" r="18" fill="#ffffff" stroke="#17324d" stroke-width="6"/>'
+            . '<circle cx="812" cy="286" r="18" fill="#ffffff" stroke="#17324d" stroke-width="6"/>'
+            . '</svg>';
+
+        return '<figure class="dsap-article-illustration">' . $svg . '</figure>';
     }
 
     private function findCvPostUrl(string $targetKeyword, string $cluster): string

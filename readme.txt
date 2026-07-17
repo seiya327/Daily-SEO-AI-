@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.15
+Stable tag: 0.6.16
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -36,6 +36,8 @@ This initial implementation includes:
 * Draft-first safety behavior for YMYL or failed audit articles.
 * Core meta description output only when a known SEO plugin is not active.
 * Styled headings, styled tables, colored lists, and CTA/reference styling for AI-generated posts.
+* Automatic reader-facing article illustrations without external image API cost.
+* Rolling article-plan refill when the active topic backlog gets low.
 
 This plugin does not guarantee search rankings. It uses Search Console evidence to plan and audit controlled refreshes.
 
@@ -58,6 +60,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests only the webmasters.readonly scope. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.16 =
+Added automatic safe SVG illustrations to generated posts and rolling strategy refill when active article plans fall below the backlog threshold.
 
 = 0.6.15 =
 Allowed test runs to publish when the post status setting is publish, changed auto setup to choose publish by default, and added visible draft reasons to the pipeline.

@@ -5,6 +5,21 @@
     margin: 2rem 0;
 }
 
+.dsap-article-illustration {
+    box-sizing: border-box;
+    margin: 1.75rem 0 2rem;
+    overflow: hidden;
+    border: 1px solid #d8e1ea;
+    background: #f7f9fb;
+}
+
+.dsap-illustration-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 8 / 3;
+}
+
 .entry-content h2,
 .wp-block-post-content h2 {
     margin-top: 2.4rem;

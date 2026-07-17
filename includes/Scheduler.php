@@ -80,13 +80,9 @@ final class Scheduler
         $settings = Settings::get();
         $topicRepo = new TopicRepository();
         $jobRepo = new JobRepository();
-        if ($topicRepo->activeCount() === 0) {
-            if (!$jobRepo->hasActiveStrategyJob()) {
-                $strategyJobId = self::queueStrategyJob('auto_refill');
-                if ($strategyJobId > 0) {
-                    wp_schedule_single_event(time() + 5, self::HOOK_RETRY_JOB, [$strategyJobId]);
-                }
-            }
+        $activeCount = $topicRepo->activeCount();
+        self::maybeQueueStrategyRefill($activeCount, $settings, $jobRepo);
+        if ($activeCount === 0) {
             return;
         }
         $max = max(1, min(10, (int) $settings['max_daily_new_articles']));
@@ -178,6 +174,19 @@ final class Scheduler
     public static function queueStrategyJob(string $trigger): int
     {
         return (new JobRepository())->createStrategyJob($trigger);
+    }
+
+    private static function maybeQueueStrategyRefill(int $activeCount, array $settings, JobRepository $jobRepo): void
+    {
+        $threshold = max(30, max(1, (int) ($settings['max_daily_new_articles'] ?? 1)) * 14);
+        if ($activeCount > $threshold || $jobRepo->hasActiveStrategyJob()) {
+            return;
+        }
+
+        $strategyJobId = self::queueStrategyJob('auto_refill');
+        if ($strategyJobId > 0) {
+            wp_schedule_single_event(time() + 5, self::HOOK_RETRY_JOB, [$strategyJobId]);
+        }
     }
 
     private static function typeForSlot(int $slot, int $total, int $attractionRatio): string
