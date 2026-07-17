@@ -36,6 +36,8 @@ final class Settings
             'gsc_client_secret' => '',
             'gsc_site_url' => '',
             'gsc_enabled' => false,
+            'ga4_property_id' => '',
+            'ga4_enabled' => false,
             'gsc_sync_time' => '03:00',
             'refresh_enabled' => false,
             'max_daily_refreshes' => 1,
@@ -277,6 +279,8 @@ final class Settings
         }
         $next['gsc_site_url'] = sanitize_text_field((string) ($input['gsc_site_url'] ?? ''));
         $next['gsc_enabled'] = !empty($input['gsc_enabled']);
+        $next['ga4_property_id'] = preg_replace('/\D+/', '', (string) ($input['ga4_property_id'] ?? '')) ?: '';
+        $next['ga4_enabled'] = !empty($input['ga4_enabled']);
         $next['gsc_sync_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($input['gsc_sync_time'] ?? '')) ? (string) $input['gsc_sync_time'] : '03:00';
         $next['refresh_enabled'] = !empty($input['refresh_enabled']);
         $next['max_daily_refreshes'] = max(0, min(5, absint($input['max_daily_refreshes'] ?? 1)));

@@ -7,7 +7,7 @@ namespace DSAP;
 final class GoogleOAuth
 {
     private const TOKEN_OPTION = 'dsap_gsc_tokens';
-    private const SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
+    private const SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/analytics.readonly';
 
     public static function connected(): bool
     {

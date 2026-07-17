@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.16
+Stable tag: 0.6.17
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -29,6 +29,7 @@ This initial implementation includes:
 * First-party page-view, internal CTA click, and affiliate CTA click measurement for conversion-oriented PDCA.
 * Pipeline progress for strategy, research, writing, audit, and publishing.
 * Google Search Console OAuth connection and rolling performance sync.
+* GA4 Data API sync for page views, engagement seconds, and key events.
 * Automated 28-day period comparison, refresh selection, AI rewrite, audit, revision backup, and review or auto-apply workflow.
 * WP-Cron based job execution.
 * Research, draft, audit, and publish stages.
@@ -57,9 +58,12 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 4. Save the client ID and client secret in the plugin settings, then connect Google Search Console.
 5. Select a property, enable daily GSC sync and automated PDCA, and run the initial 59-day sync.
 
-The plugin requests only the webmasters.readonly scope. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
+The plugin requests read-only Search Console and GA4 scopes. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.17 =
+Added GA4 Data API integration, GA4 property settings, daily GA4 metric sync, and engagement/conversion-aware refresh candidate scoring.
 
 = 0.6.16 =
 Added automatic safe SVG illustrations to generated posts and rolling strategy refill when active article plans fall below the backlog threshold.

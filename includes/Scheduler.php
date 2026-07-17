@@ -141,6 +141,14 @@ final class Scheduler
         if (is_wp_error($result)) {
             update_option('dsap_gsc_last_sync', ['error' => $result->get_error_message(), 'synced_at' => current_time('mysql')], false);
         }
+        $settings = Settings::get();
+        if (!empty($settings['ga4_enabled']) && (string) ($settings['ga4_property_id'] ?? '') !== '') {
+            $gaEnd = new \DateTimeImmutable('-1 day', new \DateTimeZone('America/Los_Angeles'));
+            $ga4 = (new AnalyticsClient())->syncRange($gaEnd->modify('-3 days')->format('Y-m-d'), $gaEnd->format('Y-m-d'));
+            if (is_wp_error($ga4)) {
+                update_option('dsap_ga4_last_sync', ['error' => $ga4->get_error_message(), 'synced_at' => current_time('mysql')], false);
+            }
+        }
         return $result;
     }
 

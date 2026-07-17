@@ -101,6 +101,7 @@ final class PromptBuilder
     {
         return self::base($job)
             . "\nTask: Diagnose this published article using Search Console, query-level evidence, and CTA click data. Create a minimal evidence-based refresh plan."
+            . "\nWhen GA4 metrics are present, use page views, engagement seconds, and key events to distinguish traffic problems from post-click engagement or conversion problems."
             . "\nDistinguish ranking, CTR, intent expansion, freshness, internal-link, and conversion problems. Do not rewrite sections that already perform well. Set should_refresh=false when evidence is insufficient."
             . "\nCTA clicks are directional signals, not confirmed sales. Never claim a sale or revenue without affiliate postback data."
             . "\nPost title: " . $post->post_title
@@ -126,6 +127,7 @@ final class PromptBuilder
     {
         return self::base($job) . "\n" . PromptLibrary::auditStandard()
             . "\nTask: Audit the proposed refresh against the original article, Search Console evidence, CTA click evidence, and refresh plan."
+            . "\nWhen GA4 metrics are present, check that the proposed changes address engagement or conversion weaknesses instead of only adding SEO text."
             . "\nDo not penalize internal links when no valid replacement candidate was supplied."
             . "\nPenalize unsupported changes, lost useful content, changed destination claims, intent drift, and cosmetic edits that do not address the diagnosed problem."
             . "\nOriginal title: " . $post->post_title

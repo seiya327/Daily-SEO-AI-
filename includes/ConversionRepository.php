@@ -24,6 +24,23 @@ final class ConversionRepository
         ));
     }
 
+    public function replaceExternal(int $postId, string $date, string $eventType, int $count): bool
+    {
+        global $wpdb;
+        if ($postId <= 0 || !in_array($eventType, ['ga4_page_view', 'ga4_engagement_seconds', 'ga4_key_event'], true)) {
+            return false;
+        }
+        $ok = $wpdb->replace(Database::table('events_daily'), [
+            'post_id' => $postId,
+            'event_date' => $date,
+            'event_type' => $eventType,
+            'event_count' => max(0, $count),
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql'),
+        ], ['%d', '%s', '%s', '%d', '%s', '%s']);
+        return $ok !== false;
+    }
+
     public function summary(int $postId, string $start, string $end): array
     {
         global $wpdb;
@@ -33,7 +50,7 @@ final class ConversionRepository
             $start,
             $end
         ), ARRAY_A) ?: [];
-        $summary = ['page_view' => 0, 'affiliate_click' => 0, 'internal_cta_click' => 0];
+        $summary = ['page_view' => 0, 'affiliate_click' => 0, 'internal_cta_click' => 0, 'ga4_page_view' => 0, 'ga4_engagement_seconds' => 0, 'ga4_key_event' => 0];
         foreach ($rows as $row) {
             $type = (string) ($row['event_type'] ?? '');
             if (array_key_exists($type, $summary)) {

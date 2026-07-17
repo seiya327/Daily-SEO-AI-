@@ -332,6 +332,7 @@ final class AdminPage
                                 <tr><th><label for="dsap-gsc-secret">Googleクライアントシークレット</label></th><td><input id="dsap-gsc-secret" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[gsc_client_secret]" value="" autocomplete="new-password" class="regular-text" placeholder="<?php echo esc_attr($hasGoogleSecret ? '設定済み（空欄なら維持）' : 'クライアントシークレット'); ?>"></td></tr>
                                 <tr><th><label for="dsap-gsc-site">Search Consoleプロパティ</label></th><td><?php self::gscSiteField((string) $settings['gsc_site_url'], is_array($gscSites) ? $gscSites : []); ?></td></tr>
                                 <tr><th>GSC日次同期</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[gsc_enabled]" value="1" <?php checked($settings['gsc_enabled']); ?>> 有効</label> <input type="time" name="<?php echo esc_attr(Settings::OPTION); ?>[gsc_sync_time]" value="<?php echo esc_attr((string) $settings['gsc_sync_time']); ?>"></td></tr>
+                                <tr><th><label for="dsap-ga4-property">GA4プロパティID</label></th><td><input id="dsap-ga4-property" name="<?php echo esc_attr(Settings::OPTION); ?>[ga4_property_id]" value="<?php echo esc_attr((string) ($settings['ga4_property_id'] ?? '')); ?>" class="regular-text" placeholder="123456789"> <label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[ga4_enabled]" value="1" <?php checked(!empty($settings['ga4_enabled'])); ?>> GA4日次同期</label><p class="description">GA4 Data APIを有効化し、OAuthを再接続してください。Google側の利用は通常無料枠で動きます。</p></td></tr>
                                 <tr><th>PDCA自動実行</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[refresh_enabled]" value="1" <?php checked($settings['refresh_enabled']); ?>> 有効</label></td></tr>
                                 <tr><th><label for="dsap-refresh-count">1日の改善記事数</label></th><td><input id="dsap-refresh-count" type="number" min="0" max="5" name="<?php echo esc_attr(Settings::OPTION); ?>[max_daily_refreshes]" value="<?php echo esc_attr((string) $settings['max_daily_refreshes']); ?>"></td></tr>
                                 <tr><th><label for="dsap-refresh-impressions">最低表示回数</label></th><td><input id="dsap-refresh-impressions" type="number" min="10" name="<?php echo esc_attr(Settings::OPTION); ?>[refresh_min_impressions]" value="<?php echo esc_attr((string) $settings['refresh_min_impressions']); ?>"> / 28日</td></tr>
@@ -509,6 +510,9 @@ final class AdminPage
         if (GoogleOAuth::connected() && trim((string) $settings['gsc_site_url']) !== '') {
             $settings['gsc_enabled'] = true;
             $settings['refresh_enabled'] = true;
+            if (trim((string) ($settings['ga4_property_id'] ?? '')) !== '') {
+                $settings['ga4_enabled'] = true;
+            }
         }
 
         update_option(Settings::OPTION, $settings, false);
@@ -620,7 +624,19 @@ final class AdminPage
         if (!is_wp_error($sites)) {
             update_option('dsap_gsc_sites', $sites, false);
         }
-        self::redirect(is_wp_error($result) ? $result->get_error_message() : '過去59日分を同期しました。保存行数: ' . (int) $result);
+        if (is_wp_error($result)) {
+            self::redirect($result->get_error_message());
+        }
+        $settings = Settings::get();
+        $ga4Rows = 0;
+        if (!empty($settings['ga4_enabled']) && (string) ($settings['ga4_property_id'] ?? '') !== '') {
+            $ga4 = (new AnalyticsClient())->backfill(59);
+            if (is_wp_error($ga4)) {
+                self::redirect($ga4->get_error_message());
+            }
+            $ga4Rows = (int) $ga4;
+        }
+        self::redirect('過去59日分を同期しました。GSC保存行数: ' . (int) $result . ' / GA4保存行数: ' . $ga4Rows);
     }
 
     public static function refreshCandidates(): void
@@ -705,6 +721,9 @@ final class AdminPage
         }
         $settings = Settings::get();
         $settings['gsc_enabled'] = true;
+        if ((string) ($settings['ga4_property_id'] ?? '') !== '') {
+            $settings['ga4_enabled'] = true;
+        }
         $settings['refresh_enabled'] = true;
         update_option(Settings::OPTION, $settings, false);
         Scheduler::reschedulePdca($settings);
@@ -834,12 +853,14 @@ final class AdminPage
         $copyId = 'dsap-copy-redirect-' . (string) $instance;
         $hasCredentials = (string) $settings['gsc_client_id'] !== '' && (string) $settings['gsc_client_secret'] !== '';
         $hasProperty = (string) $settings['gsc_site_url'] !== '';
+        $hasGa4 = !empty($settings['ga4_enabled']) && (string) ($settings['ga4_property_id'] ?? '') !== '';
         $hasSync = !empty($lastSync['synced_at']) && empty($lastSync['error']);
         $enabled = !empty($settings['gsc_enabled']) && !empty($settings['refresh_enabled']);
         $steps = [
             ['OAuth設定', $hasCredentials],
             ['Google接続', $connected],
             ['プロパティ選択', $hasProperty],
+            ['GA4設定', $hasGa4],
             ['初回データ同期', $hasSync],
             ['自動改善', $enabled],
         ];
@@ -851,7 +872,7 @@ final class AdminPage
 
         if (!$hasCredentials) {
             echo '<div class="dsap-setup-step"><h3>1. Google CloudでOAuthを作る</h3>';
-            echo '<p><a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com">Search Console APIを有効化</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/auth/overview">同意画面を設定</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/credentials">OAuthクライアントを作成</a></p>';
+            echo '<p><a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com">Search Console APIを有効化</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com">GA4 Data APIを有効化</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/auth/overview">同意画面を設定</a> <a class="button" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/credentials">OAuthクライアントを作成</a></p>';
             echo '<p>種類は「ウェブアプリケーション」。承認済みリダイレクトURIには次を登録します。</p>';
             echo '<ol class="dsap-cycle"><li>「OAuthクライアントを作成」を開きます。</li><li>アプリケーションの種類で「ウェブアプリケーション」を選びます。</li><li>名前は「Daily SEO AI Publisher」など分かる名前にします。</li><li>「承認済みのリダイレクトURI」で「URIを追加」を押し、下のURLを貼り付けます。</li><li>「作成」を押し、JSONをダウンロードします。</li><li>ダウンロードしたJSONをこの画面のファイル選択から読み込みます。</li></ol>';
             echo '<div class="dsap-copy-row"><code id="' . esc_attr($redirectId) . '">' . esc_html(GoogleOAuth::redirectUri()) . '</code><button type="button" class="button" id="' . esc_attr($copyId) . '">コピー</button></div>';
@@ -1089,7 +1110,7 @@ final class AdminPage
             $deltaPosition = (float) $current['position'] - (float) $previous['position'];
             $eventType = (string) get_post_meta($postId, '_dsap_article_type', true) === 'cv' ? 'affiliate_click' : 'internal_cta_click';
             $ctaClicks = (int) ($comparison['current_cta'][$eventType] ?? 0);
-            $pageViews = (int) ($comparison['current_cta']['page_view'] ?? 0);
+            $pageViews = max((int) ($comparison['current_cta']['page_view'] ?? 0), (int) ($comparison['current_cta']['ga4_page_view'] ?? 0));
             $ctaRate = $pageViews > 0 ? $ctaClicks / $pageViews : 0;
             echo '<tr><td><a href="' . esc_url(get_edit_post_link($postId)) . '">' . esc_html(get_the_title($postId)) . '</a></td>';
             $ctaDisplay = $pageViews > 0 ? number_format_i18n($ctaClicks, 0) . ' / ' . number_format_i18n($pageViews, 0) . 'PV (' . number_format_i18n($ctaRate * 100, 1) . '%)' : number_format_i18n($ctaClicks, 0);

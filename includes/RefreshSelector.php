@@ -110,10 +110,19 @@ final class RefreshSelector
         $articleType = (string) get_post_meta($postId, '_dsap_article_type', true);
         $eventType = $articleType === 'cv' ? 'affiliate_click' : 'internal_cta_click';
         $ctaClicks = (int) ($comparison['current_cta'][$eventType] ?? 0);
-        $pageViews = (int) ($comparison['current_cta']['page_view'] ?? 0);
+        $pageViews = max((int) ($comparison['current_cta']['page_view'] ?? 0), (int) ($comparison['current_cta']['ga4_page_view'] ?? 0));
         if ($pageViews >= 20 && ($ctaClicks / max(1, $pageViews)) < 0.03) {
             $reasons[] = $articleType === 'cv' ? 'low_affiliate_click_rate' : 'low_internal_cta_rate';
             $score += 35;
+        }
+        $engagementSeconds = (int) ($comparison['current_cta']['ga4_engagement_seconds'] ?? 0);
+        if ($pageViews >= 20 && $engagementSeconds > 0 && ($engagementSeconds / max(1, $pageViews)) < 25) {
+            $reasons[] = 'low_engagement_time';
+            $score += 30;
+        }
+        if ($articleType === 'cv' && $pageViews >= 20 && (int) ($comparison['current_cta']['ga4_key_event'] ?? 0) === 0) {
+            $reasons[] = 'no_ga4_key_events';
+            $score += 20;
         }
         $score += min(100, log10(max(10, (float) $current['impressions'])) * 10);
         return ['eligible' => $reasons !== [], 'score' => (int) round($score), 'reason' => implode(',', array_unique($reasons))];
