@@ -29,6 +29,7 @@ final class Plugin
         (new GitHubUpdater())->boot();
         (new SeoManager())->boot();
         add_action('wp_enqueue_scripts', [$this, 'frontendAssets']);
+        add_filter('the_content', [$this, 'cleanLegacyArticleChrome'], 1);
     }
 
     public function frontendAssets(): void
@@ -36,5 +37,15 @@ final class Plugin
         if (is_singular('post')) {
             wp_enqueue_style('dsap-frontend', DSAP_URL . 'assets/frontend.css', [], DSAP_VERSION);
         }
+    }
+
+    public function cleanLegacyArticleChrome(string $content): string
+    {
+        if (is_admin()) {
+            return $content;
+        }
+
+        $cleaned = preg_replace('/<section\b[^>]*class=(["\'])[^"\']*\bdsap-visual-(?:lead|chart)\b[^"\']*\1[^>]*>.*?<\/section>/is', '', $content);
+        return is_string($cleaned) ? $cleaned : $content;
     }
 }

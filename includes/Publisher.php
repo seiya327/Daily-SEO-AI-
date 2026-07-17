@@ -45,8 +45,7 @@ final class Publisher
             update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
         }
         $body = wp_kses_post((string) ($article['content_html'] ?? ''));
-        $content = $this->visualLead($article, $research, $funnel);
-        $content .= $body;
+        $content = $body;
         $content .= $this->relatedLinks($article);
         $content .= $this->references($article, $research);
         $content .= $cta['html'];
@@ -155,17 +154,6 @@ final class Publisher
             return '';
         }
         return '<section class="dsap-references"><h2>参考資料</h2><ul>' . implode('', $items) . '</ul></section>';
-    }
-
-    private function visualLead(array $article, array $research, array $funnel): string
-    {
-        $excerpt = sanitize_text_field((string) ($article['excerpt'] ?? ''));
-        $lead = $excerpt !== '' ? $excerpt : sanitize_text_field((string) ($article['meta_description'] ?? ''));
-        if ($lead === '') {
-            return '';
-        }
-
-        return '<section class="dsap-visual-lead"><div class="dsap-visual-copy"><div class="dsap-badges"><span>要点整理</span><span>比較しやすく解説</span></div><p class="dsap-visual-summary">' . esc_html($lead) . '</p></div><figure class="dsap-visual-figure"><div class="dsap-figure-mark"><span></span><span></span><span></span></div><figcaption>読む前のポイント</figcaption></figure></section>';
     }
 
     private function findCvPostUrl(string $targetKeyword, string $cluster): string
