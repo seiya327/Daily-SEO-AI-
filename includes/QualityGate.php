@@ -135,12 +135,34 @@ final class QualityGate
         $status = (string) ($settings['post_status'] ?? 'draft');
         $profile = Settings::qualityProfile((string) ($settings['article_quality'] ?? 'high'));
         $minimumScore = (int) ($profile['audit_score'] ?? 85);
+        $reasons = [];
 
-        if (!empty($payload['test_mode']) || $ymyl || $score < $minimumScore || $critical !== [] || $unsupported !== [] || empty($diagnostics['passed'])) {
+        if ($ymyl) {
+            $reasons[] = 'YMYL safety review required';
+        }
+        if ($score < $minimumScore) {
+            $reasons[] = 'Quality score below threshold: ' . $score . '/' . $minimumScore;
+        }
+        if ($critical !== []) {
+            $reasons[] = 'Critical audit issues: ' . count($critical);
+        }
+        if ($unsupported !== []) {
+            $reasons[] = 'Unsupported claims: ' . count($unsupported);
+        }
+        if (empty($diagnostics['passed'])) {
+            $errors = is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : [];
+            $reasons[] = $errors !== [] ? 'Deterministic checks failed: ' . implode(' / ', array_slice(array_map('strval', $errors), 0, 3)) : 'Deterministic checks failed';
+        }
+
+        if ($reasons !== []) {
             $status = 'draft';
         }
         if (!in_array($status, ['draft', 'pending', 'publish'], true)) {
             $status = 'draft';
+            $reasons[] = 'Invalid post status setting';
+        }
+        if ($status === 'draft' && $reasons === []) {
+            $reasons[] = 'Post status setting is draft';
         }
         return [
             'post_status' => $status,
@@ -153,6 +175,7 @@ final class QualityGate
             'unsupported_count' => count($unsupported),
             'deterministic_errors' => count(is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : []),
             'test_mode' => !empty($payload['test_mode']),
+            'draft_reasons' => $reasons,
         ];
     }
 

@@ -477,7 +477,7 @@ final class AdminPage
         $settings['daily_enabled'] = true;
         $settings['daily_time'] = (string) ($settings['daily_time'] ?: '09:00');
         $settings['max_daily_new_articles'] = max(1, min(3, (int) ($settings['max_daily_new_articles'] ?: 1)));
-        $settings['post_status'] = in_array((string) $settings['post_status'], ['draft', 'pending', 'publish'], true) ? $settings['post_status'] : 'draft';
+        $settings['post_status'] = 'publish';
         $settings['attraction_ratio'] = (int) ($settings['attraction_ratio'] ?: 70);
         if (!array_key_exists((string) ($settings['keyword_strategy'] ?? ''), Settings::keywordStrategies())) {
             $settings['keyword_strategy'] = 'longtail';
@@ -1151,6 +1151,11 @@ final class AdminPage
         }
         if (is_array($payload['publish_decision'] ?? null)) {
             $parts[] = '品質 ' . (string) ($payload['publish_decision']['score'] ?? 0) . '点';
+            $status = (string) ($payload['publish_decision']['post_status'] ?? '');
+            $reasons = is_array($payload['publish_decision']['draft_reasons'] ?? null) ? array_map('strval', $payload['publish_decision']['draft_reasons']) : [];
+            if ($status === 'draft' && $reasons !== []) {
+                $parts[] = '下書き理由: ' . implode(' / ', array_slice($reasons, 0, 2));
+            }
         }
         if (!empty($payload['revision_count'])) {
             $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';

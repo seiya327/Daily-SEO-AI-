@@ -42,6 +42,7 @@ final class Publisher
         $cta = $this->ctaData((int) $postId, $funnel, $article);
         if ($cta['target'] === '') {
             $decision['post_status'] = 'draft';
+            $decision['draft_reasons'][] = 'CTA target is missing';
             update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
         }
         $body = wp_kses_post((string) ($article['content_html'] ?? ''));
@@ -79,6 +80,14 @@ final class Publisher
         update_post_meta((int) $postId, '_dsap_cta_anchor', sanitize_text_field((string) ($article['cta_anchor'] ?? '')));
         update_post_meta((int) $postId, '_dsap_payload_hash', hash('sha256', wp_json_encode($payload) ?: ''));
         update_post_meta((int) $postId, '_dsap_publish_decision', wp_json_encode($decision));
+        if ((string) $decision['post_status'] === 'draft') {
+            $reasons = is_array($decision['draft_reasons'] ?? null) ? array_map('strval', $decision['draft_reasons']) : [];
+            if ($reasons !== []) {
+                update_post_meta((int) $postId, '_dsap_needs_review_reason', implode(' / ', array_slice($reasons, 0, 5)));
+            }
+        } else {
+            delete_post_meta((int) $postId, '_dsap_needs_review_reason');
+        }
         return (int) $postId;
     }
 

@@ -20,7 +20,7 @@ final class Settings
             'model_refresh' => 'gpt-5.6-terra',
             'article_quality' => 'high',
             'keyword_strategy' => 'longtail',
-            'post_status' => 'draft',
+            'post_status' => 'publish',
             'daily_enabled' => false,
             'daily_time' => '09:00',
             'max_daily_new_articles' => 1,
