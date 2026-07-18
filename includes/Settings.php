@@ -51,6 +51,7 @@ final class Settings
             'global_instructions' => '',
             'mock_mode' => true,
             'delete_data_on_uninstall' => false,
+            'publish_default_migrated' => false,
         ];
     }
 
@@ -158,13 +159,24 @@ final class Settings
             add_option(self::OPTION, self::defaults(), '', false);
             return;
         }
-        update_option(self::OPTION, self::normalizeModels(array_merge(self::defaults(), $current)), false);
+        $merged = self::normalizeModels(array_merge(self::defaults(), $current));
+        if (empty($merged['publish_default_migrated']) && (string) ($merged['post_status'] ?? '') === 'draft') {
+            $merged['post_status'] = 'publish';
+        }
+        $merged['publish_default_migrated'] = true;
+        update_option(self::OPTION, $merged, false);
     }
 
     public static function get(): array
     {
         $settings = get_option(self::OPTION, []);
-        return self::normalizeModels(array_merge(self::defaults(), is_array($settings) ? $settings : []));
+        $merged = self::normalizeModels(array_merge(self::defaults(), is_array($settings) ? $settings : []));
+        if (empty($merged['publish_default_migrated']) && (string) ($merged['post_status'] ?? '') === 'draft') {
+            $merged['post_status'] = 'publish';
+            $merged['publish_default_migrated'] = true;
+            update_option(self::OPTION, $merged, false);
+        }
+        return $merged;
     }
 
     private static function normalizeModels(array $settings): array
@@ -301,6 +313,7 @@ final class Settings
         $next['global_instructions'] = sanitize_textarea_field((string) ($input['global_instructions'] ?? ''));
         $next['mock_mode'] = !empty($input['mock_mode']);
         $next['delete_data_on_uninstall'] = !empty($input['delete_data_on_uninstall']);
+        $next['publish_default_migrated'] = true;
 
         Scheduler::rescheduleDaily($next);
         Scheduler::reschedulePdca($next);

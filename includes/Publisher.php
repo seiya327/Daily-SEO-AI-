@@ -35,12 +35,12 @@ final class Publisher
         $finalSlug = sanitize_title((string) ($article['slug'] ?? $placeholderSlug)) ?: $placeholderSlug;
         $uniqueSlug = wp_unique_post_slug($finalSlug, (int) $postId, (string) $decision['post_status'], 'post', 0);
         if ($uniqueSlug !== $finalSlug) {
-            $decision['post_status'] = 'draft';
-            update_post_meta((int) $postId, '_dsap_needs_review_reason', 'Slug collision detected.');
+            update_post_meta((int) $postId, '_dsap_slug_adjusted_from', $finalSlug);
         }
 
         $cta = $this->ctaData((int) $postId, $funnel, $article);
-        if ($cta['target'] === '') {
+        $articleType = ($funnel['article_type'] ?? 'attraction') === 'cv' ? 'cv' : 'attraction';
+        if ($cta['target'] === '' && $articleType === 'cv') {
             $decision['post_status'] = 'draft';
             $decision['draft_reasons'][] = 'CTA target is missing';
             update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
