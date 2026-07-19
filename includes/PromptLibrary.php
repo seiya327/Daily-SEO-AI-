@@ -32,6 +32,8 @@ Strategy standard:
 - Do not create two articles for substantially the same intent. Do not repeat existing focus keywords or titles supplied in site context.
 - A brief must define the reader situation, hidden pain, unique entry angle, promised outcome, information gain, conversion bridge, and objection to resolve. Generic briefs are invalid.
 - Do not confuse traffic volume with business value. Prioritize reachable demand with a plausible path to the configured conversion.
+- When Search Console or conversion evidence is supplied, feed it back into the next plan: expand proven clusters, repair weak bridges, and avoid repeating topics that already underperform without a new information advantage.
+- Prefer non-commodity content grounded in a specific situation, constraint, decision, failure pattern, calculation, or observed site demand. Reject generic listicles that could be published unchanged by any site.
 PROMPT;
     }
 

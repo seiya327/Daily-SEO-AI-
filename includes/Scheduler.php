@@ -11,14 +11,33 @@ final class Scheduler
     public const HOOK_RECOVER_STALE = 'dsap_recover_stale_jobs';
     public const HOOK_GSC_SYNC = 'dsap_gsc_sync';
     public const HOOK_DAILY_REFRESH = 'dsap_daily_refresh';
+    public const HOOK_GENERATE_IMAGE = 'dsap_generate_article_image';
 
     public static function boot(): void
     {
+        add_action('init', [self::class, 'ensureEvents'], 20);
         add_action(self::HOOK_DAILY_GENERATE, [self::class, 'dailyGenerate']);
         add_action(self::HOOK_RETRY_JOB, [self::class, 'runJob']);
         add_action(self::HOOK_RECOVER_STALE, [self::class, 'recoverStale']);
         add_action(self::HOOK_GSC_SYNC, [self::class, 'syncSearchConsole']);
         add_action(self::HOOK_DAILY_REFRESH, [self::class, 'queueRefreshCandidates']);
+        add_action(self::HOOK_GENERATE_IMAGE, [self::class, 'generateArticleImage']);
+    }
+
+    public static function ensureEvents(): void
+    {
+        $settings = Settings::get();
+        if (!empty($settings['daily_enabled']) && !wp_next_scheduled(self::HOOK_DAILY_GENERATE)) {
+            wp_schedule_event(self::nextDailyTimestamp((string) $settings['daily_time']), 'daily', self::HOOK_DAILY_GENERATE);
+        }
+        if (!wp_next_scheduled(self::HOOK_RECOVER_STALE)) {
+            wp_schedule_event(time() + 10 * MINUTE_IN_SECONDS, 'hourly', self::HOOK_RECOVER_STALE);
+        }
+        if (!empty($settings['gsc_enabled']) && GoogleOAuth::connected()
+            && (!wp_next_scheduled(self::HOOK_GSC_SYNC)
+                || (!empty($settings['refresh_enabled']) && !wp_next_scheduled(self::HOOK_DAILY_REFRESH)))) {
+            self::reschedulePdca($settings);
+        }
     }
 
     public static function scheduleEvents(): void
@@ -159,6 +178,11 @@ final class Scheduler
         return $count;
     }
 
+    public static function generateArticleImage(int $postId): void
+    {
+        (new ArticleImageGenerator())->generate($postId);
+    }
+
     public static function scheduleQueuedRefreshJobs(): void
     {
         self::scheduleQueuedJobs('refresh');
@@ -186,7 +210,7 @@ final class Scheduler
 
     private static function maybeQueueStrategyRefill(int $activeCount, array $settings, JobRepository $jobRepo): void
     {
-        $threshold = max(30, max(1, (int) ($settings['max_daily_new_articles'] ?? 1)) * 14);
+        $threshold = max(50, max(1, (int) ($settings['max_daily_new_articles'] ?? 1)) * 14);
         if ($activeCount > $threshold || $jobRepo->hasActiveStrategyJob()) {
             return;
         }

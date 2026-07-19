@@ -32,8 +32,18 @@ final class QualityGate
         $minimumH2 = ['standard' => 3, 'high' => 5, 'premium' => 6][$quality] ?? 5;
         preg_match_all('/<h2\b[^>]*>/i', $html, $h2Matches);
         preg_match_all('/<p\b[^>]*>.*?<\/p>/is', $html, $paragraphMatches);
+        preg_match_all('/<table\b[^>]*>/i', $html, $tableMatches);
+        preg_match_all('/<(?:ul|ol)\b[^>]*>/i', $html, $listMatches);
         $h2Count = count($h2Matches[0] ?? []);
         $paragraphCount = count($paragraphMatches[0] ?? []);
+        $tableCount = count($tableMatches[0] ?? []);
+        $listCount = count($listMatches[0] ?? []);
+        $longParagraphCount = 0;
+        foreach (($paragraphMatches[0] ?? []) as $paragraph) {
+            if (self::length(trim(wp_strip_all_tags((string) $paragraph))) > 450) {
+                $longParagraphCount++;
+            }
+        }
 
         if ($html === '') {
             $errors[] = 'Article content is empty.';
@@ -53,8 +63,23 @@ final class QualityGate
         if ($paragraphCount < 8) {
             $warnings[] = '本文の段落数が少なく、説明が粗い可能性があります。';
         }
+        if ($tableCount < 1) {
+            $errors[] = '比較・判断に使えるHTML表がありません。少なくとも1つ追加してください。';
+        }
+        if ($listCount < 1) {
+            $errors[] = '手順またはチェック項目を示す箇条書きがありません。少なくとも1つ追加してください。';
+        }
+        if (self::length(trim((string) ($article['answer_summary'] ?? ''))) < 30) {
+            $errors[] = '読者向けの要点要約が不足しています。';
+        }
+        if ($longParagraphCount > 2) {
+            $warnings[] = "450文字を超える長い段落が{$longParagraphCount}件あります。段落を分割してください。";
+        }
         if (preg_match('/(ここに.{0,20}(入力|記載|追加)|Lorem ipsum|TODO|架空の|サンプルテキスト)/iu', $text)) {
             $errors[] = '本文にプレースホルダーまたは未完成表現が含まれます。';
+        }
+        if (preg_match('/(判断材料の整理|根拠の量|構成の深さ|内部導線|品質判定|監査スコア|AI監査)/u', $text)) {
+            $errors[] = '本文に読者へ表示してはいけない内部管理文言が含まれます。';
         }
 
         $sources = is_array($research['sources'] ?? null) ? $research['sources'] : [];
@@ -110,6 +135,9 @@ final class QualityGate
                 'minimum_characters' => $minimum,
                 'h2_count' => $h2Count,
                 'paragraph_count' => $paragraphCount,
+                'table_count' => $tableCount,
+                'list_count' => $listCount,
+                'long_paragraph_count' => $longParagraphCount,
                 'verified_source_count' => count($sourceIndexes),
                 'internal_link_count' => count(is_array($article['internal_link_post_ids'] ?? null) ? $article['internal_link_post_ids'] : []),
             ],
@@ -213,6 +241,9 @@ final class QualityGate
         if (preg_match('/<\s*(script|iframe|form)\b|on\w+\s*=/i', $html)) {
             return 'Refresh article contains disallowed HTML.';
         }
+        if (preg_match('/(判断材料の整理|根拠の量|構成の深さ|内部導線|品質判定|監査スコア|AI監査)/u', $text)) {
+            return '改善記事に読者へ表示してはいけない内部管理文言が含まれます。';
+        }
         if (self::length($text) < 1000) {
             return 'Refresh article is unexpectedly short.';
         }
@@ -230,7 +261,7 @@ final class QualityGate
     private static function hasPublishBlocker(array $errors): bool
     {
         foreach (array_map('strval', $errors) as $error) {
-            if (preg_match('/empty|H1|disallowed HTML|out-of-range source|placeholder|unfinished/i', $error)) {
+            if (preg_match('/empty|H1|disallowed HTML|out-of-range source|placeholder|unfinished|内部管理文言/i', $error)) {
                 return true;
             }
         }

@@ -29,15 +29,24 @@ final class Plugin
         (new GitHubUpdater())->boot();
         (new SeoManager())->boot();
         add_action('wp_enqueue_scripts', [$this, 'frontendAssets']);
+        add_filter('body_class', [$this, 'bodyClasses']);
         add_filter('the_content', [$this, 'cleanLegacyArticleChrome'], 1);
         add_filter('the_content', [$this, 'enhanceArticleContent'], 20);
     }
 
     public function frontendAssets(): void
     {
-        if (is_singular('post')) {
+        if (is_singular('post') && $this->isManagedPost((int) get_queried_object_id())) {
             wp_enqueue_style('dsap-frontend', DSAP_URL . 'assets/frontend.css', [], DSAP_VERSION);
         }
+    }
+
+    public function bodyClasses(array $classes): array
+    {
+        if (is_singular('post') && $this->isManagedPost((int) get_queried_object_id())) {
+            $classes[] = 'dsap-managed-post';
+        }
+        return array_values(array_unique($classes));
     }
 
     public function cleanLegacyArticleChrome(string $content): string
@@ -52,13 +61,31 @@ final class Plugin
 
     public function enhanceArticleContent(string $content): string
     {
-        if (is_admin() || !is_singular('post') || !in_the_loop() || !is_main_query()) {
+        if (is_admin() || !is_singular('post')) {
             return $content;
         }
         $postId = get_the_ID();
-        if ($postId <= 0 || get_post_meta($postId, '_dsap_job_id', true) === '') {
+        if ($postId <= 0 || $postId !== (int) get_queried_object_id() || !$this->isManagedPost($postId)) {
             return $content;
         }
-        return ArticleVisuals::enhance($content, get_the_title($postId), (string) get_post_meta($postId, '_dsap_article_type', true));
+        $enhanced = ArticleVisuals::enhance(
+            $content,
+            get_the_title($postId),
+            (string) get_post_meta($postId, '_dsap_article_type', true),
+            (string) get_post_meta($postId, '_dsap_answer_summary', true)
+        );
+        return str_contains($enhanced, 'dsap-article-content')
+            ? $enhanced
+            : '<div class="dsap-article-content">' . $enhanced . '</div>';
+    }
+
+    private function isManagedPost(int $postId): bool
+    {
+        if ($postId <= 0) {
+            return false;
+        }
+        return get_post_meta($postId, '_dsap_job_id', true) !== ''
+            || get_post_meta($postId, '_dsap_article_type', true) !== ''
+            || get_post_meta($postId, '_dsap_focus_keyword', true) !== '';
     }
 }

@@ -27,6 +27,9 @@ final class RefreshSelector
         $candidates = [];
         $postIds = array_values(array_unique(array_merge($metrics->postIds(), $metrics->managedPostIds())));
         foreach ($postIds as $postId) {
+            if ($trigger === 'cron' && get_post_meta($postId, '_dsap_job_id', true) === '') {
+                continue;
+            }
             if (!$this->eligibleByCooldown($postId, (int) $settings['refresh_cooldown_days'])) {
                 continue;
             }

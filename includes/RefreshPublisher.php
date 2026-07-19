@@ -36,7 +36,7 @@ final class RefreshPublisher
             (new JobRepository())->setRevision((int) $job['id'], $revisionId);
         }
 
-        $content = $this->composeContent($post->post_content, $article);
+        $content = $this->composeContent($post->post_content, $article, $postId);
         $updated = wp_update_post([
             'ID' => $postId,
             'post_title' => sanitize_text_field((string) ($article['title'] ?? $post->post_title)),
@@ -113,7 +113,7 @@ final class RefreshPublisher
 
     private function createDraft(\WP_Post $post, array $article, array $job, bool $sourceChanged, bool $safe): int|\WP_Error
     {
-        $content = $this->composeContent($post->post_content, $article);
+        $content = $this->composeContent($post->post_content, $article, $post->ID);
         $reason = $sourceChanged ? 'original_changed' : ($safe ? 'manual_review' : 'audit_failed');
         return wp_insert_post([
             'post_type' => 'post',
@@ -151,20 +151,65 @@ final class RefreshPublisher
             && empty($audit['unsupported_claims']);
     }
 
-    private function composeContent(string $original, array $article): string
+    private function composeContent(string $original, array $article, int $postId): string
     {
-        $proposed = wp_kses_post((string) ($article['content_html'] ?? ''));
-        foreach (['dsap-related', 'dsap-references'] as $className) {
+        $proposed = ArticleVisuals::enhance(
+            wp_kses_post((string) ($article['content_html'] ?? '')),
+            (string) ($article['title'] ?? get_the_title($postId)),
+            (string) get_post_meta($postId, '_dsap_article_type', true)
+        );
+        foreach (['dsap-related'] as $className) {
             $pattern = '/<(aside|section)\s+class=["\'][^"\']*\b' . preg_quote($className, '/') . '\b[^"\']*["\'][^>]*>.*?<\/\1>/is';
             if (preg_match($pattern, $original, $section)) {
                 $proposed = rtrim($proposed) . "\n" . $section[0];
             }
+        }
+        if (!str_contains($proposed, 'dsap-generated-image')
+            && preg_match('/<figure\s+class=["\'][^"\']*\bdsap-generated-image\b[^"\']*["\'][^>]*>.*?<\/figure>/is', $original, $generatedImage)) {
+            $proposed = $this->insertAfterParagraph($proposed, $generatedImage[0], 3);
+        }
+        $references = $this->references($article);
+        if ($references !== '') {
+            $proposed = rtrim($proposed) . "\n" . $references;
+        } elseif (preg_match('/<section\s+class=["\'][^"\']*\bdsap-references\b[^"\']*["\'][^>]*>.*?<\/section>/is', $original, $oldReferences)) {
+            $proposed = rtrim($proposed) . "\n" . $oldReferences[0];
         }
         if (preg_match('/<aside\s+class=["\'][^"\']*\bdsap-cta\b[^"\']*["\'][^>]*>.*?<\/aside>/is', $original, $match)) {
             $cta = $this->refreshCtaCopy($match[0], $article);
             $proposed = rtrim($proposed) . "\n" . $cta;
         }
         return $proposed;
+    }
+
+    private function insertAfterParagraph(string $html, string $insert, int $target): string
+    {
+        $paragraph = 0;
+        $updated = preg_replace_callback('/<\/p>/i', static function (array $matches) use (&$paragraph, $insert, $target): string {
+            $paragraph++;
+            return (string) $matches[0] . ($paragraph === $target ? $insert : '');
+        }, $html);
+        return is_string($updated) && $updated !== $html ? $updated : $insert . $html;
+    }
+
+    private function references(array $article): string
+    {
+        $sources = is_array($article['sources'] ?? null) ? $article['sources'] : [];
+        $indexes = array_values(array_unique(array_map('intval', is_array($article['source_indexes'] ?? null) ? $article['source_indexes'] : [])));
+        $items = [];
+        foreach ($indexes as $index) {
+            if (!isset($sources[$index]) || !is_array($sources[$index])) {
+                continue;
+            }
+            $url = esc_url_raw((string) ($sources[$index]['url'] ?? ''));
+            $title = sanitize_text_field((string) ($sources[$index]['title'] ?? $url));
+            $publisher = sanitize_text_field((string) ($sources[$index]['publisher'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+            $label = $publisher !== '' ? $title . ' - ' . $publisher : $title;
+            $items[] = '<li><a href="' . esc_url($url) . '" rel="noopener noreferrer" target="_blank">' . esc_html($label) . '</a></li>';
+        }
+        return $items === [] ? '' : '<section class="dsap-references"><h2>参考資料</h2><ul>' . implode('', $items) . '</ul></section>';
     }
 
     private function refreshCtaCopy(string $cta, array $article): string

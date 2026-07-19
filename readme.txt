@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.20
+Stable tag: 0.6.21
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -38,7 +38,10 @@ This initial implementation includes:
 * Core meta description output only when a known SEO plugin is not active.
 * Styled headings, styled tables, colored lists, and CTA/reference styling for AI-generated posts.
 * Automatic reader-facing article illustrations without external image API cost.
+* Optional one-image-per-article OpenAI image generation with WordPress media-library storage, responsive image markup, retries, and visible pipeline status.
 * Rolling article-plan refill when the active topic backlog gets low.
+* Search Console, GA4, and CTA performance evidence fed back into future content strategy generation.
+* Yoast, Rank Math, and AIOSEO meta-description compatibility plus core BlogPosting structured data when no SEO plugin owns the output.
 
 This plugin does not guarantee search rankings. It uses Search Console evidence to plan and audit controlled refreshes.
 
@@ -61,6 +64,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests read-only Search Console and GA4 scopes. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.21 =
+Scoped article styling to DSAP-managed posts, added optional asynchronous GPT Image generation with media-library storage and retry controls, fed GSC/GA4 performance into future strategy, raised automatic plan refill to a 50-topic floor, refreshed source lists during PDCA rewrites, limited automatic rewrites to managed posts, stopped missing CTA URLs from forcing otherwise safe posts into drafts, improved SEO metadata and article schema, restored missing cron events, and added deterministic readability and internal-text checks.
 
 = 0.6.20 =
 Replaced SVG article illustrations with WordPress-safe HTML/CSS visuals, added automatic key-takeaway boxes, and applies visual enhancement to existing DSAP posts at render time.

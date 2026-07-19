@@ -6,14 +6,14 @@ namespace DSAP;
 
 final class ArticleVisuals
 {
-    public static function enhance(string $html, string $title, string $articleType = 'attraction'): string
+    public static function enhance(string $html, string $title, string $articleType = 'attraction', string $answerSummary = ''): string
     {
         $enhanced = $html;
         if (!str_contains($enhanced, 'dsap-article-illustration')) {
             $enhanced = self::insertAfterFirstParagraph($enhanced, self::illustration($title, $articleType));
         }
         if (!str_contains($enhanced, 'dsap-key-takeaways')) {
-            $takeaways = self::takeaways($enhanced);
+            $takeaways = self::takeaways($enhanced, $answerSummary);
             if ($takeaways !== '') {
                 $enhanced = self::insertAfterIllustration($enhanced, $takeaways);
             }
@@ -35,28 +35,43 @@ final class ArticleVisuals
 
     private static function illustration(string $title, string $articleType): string
     {
-        $label = sanitize_text_field($title) !== '' ? sanitize_text_field($title) : 'Article illustration';
+        $label = sanitize_text_field($title) !== '' ? sanitize_text_field($title) : '記事内容のイメージ';
         $tone = $articleType === 'cv' ? 'is-cv' : 'is-attraction';
         return '<figure class="dsap-article-illustration ' . esc_attr($tone) . '" role="img" aria-label="' . esc_attr($label) . '">'
             . '<div class="dsap-art-sky"><span></span><span></span><span></span></div>'
-            . '<div class="dsap-art-card"><i></i><i></i><i></i></div>'
+            . '<div class="dsap-art-card"><span></span><span></span><span></span></div>'
             . '<div class="dsap-art-bars"><span></span><span></span><span></span></div>'
             . '<div class="dsap-art-path"><span></span><span></span></div>'
             . '</figure>';
     }
 
-    private static function takeaways(string $html): string
+    private static function takeaways(string $html, string $answerSummary): string
     {
-        preg_match_all('/<h2\b[^>]*>(.*?)<\/h2>/is', $html, $matches);
         $items = [];
-        foreach (($matches[1] ?? []) as $heading) {
-            $text = trim(wp_strip_all_tags((string) $heading));
-            if ($text === '' || str_contains($text, '参考') || str_contains($text, 'あわせて')) {
-                continue;
+        $summary = trim(wp_strip_all_tags($answerSummary));
+        if ($summary !== '') {
+            $sentences = preg_split('/(?<=[。！？!?])\s*/u', $summary, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($sentences as $sentence) {
+                $text = trim((string) $sentence);
+                if ($text !== '') {
+                    $items[] = $text;
+                }
+                if (count($items) >= 3) {
+                    break;
+                }
             }
-            $items[] = $text;
-            if (count($items) >= 3) {
-                break;
+        }
+        if ($items === []) {
+            preg_match_all('/<h2\b[^>]*>(.*?)<\/h2>/is', $html, $matches);
+            foreach (($matches[1] ?? []) as $heading) {
+                $text = trim(wp_strip_all_tags((string) $heading));
+                if ($text === '' || str_contains($text, '参考') || str_contains($text, 'あわせて')) {
+                    continue;
+                }
+                $items[] = $text;
+                if (count($items) >= 3) {
+                    break;
+                }
             }
         }
         if ($items === []) {

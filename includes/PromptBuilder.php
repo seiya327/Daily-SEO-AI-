@@ -13,6 +13,8 @@ final class PromptBuilder
         return PromptLibrary::strategyStandard()
             . "\nCreate a practical Japanese SEO and conversion content strategy. Return 18 to 30 article plans. Do not promise rankings."
             . "\nBefore planning articles, state a concrete offer analysis, ideal customer profile, positioning, conversion hypotheses, and content-gap opportunities. Base them on supplied evidence and label uncertainty instead of guessing."
+            . "\nWhen performance_evidence is present, use its Search Console queries, period changes, engagement, and CTA signals to decide which clusters to expand, consolidate, or avoid. Do not turn every query variation into a separate thin article."
+            . "\nPrefer non-commodity angles with a concrete situation, constraint, decision, failure pattern, or site-specific evidence. A generic article that any site could publish is not a valid opportunity."
             . "\nUse web research to understand the offer category, current alternatives, customer objections, and non-obvious adjacent demand. If an affiliate URL is supplied, inspect only publicly available information and never invent offer claims."
             . "\nKeyword strategy: " . (string) ($snapshot['keyword_strategy'] ?? 'longtail')
             . "\nAttraction ratio target: " . (string) ($snapshot['attraction_ratio'] ?? 70) . '%'
@@ -115,6 +117,7 @@ final class PromptBuilder
         return self::base($job)
             . "\nTask: Revise the complete WordPress article according to the approved refresh plan. Preserve accurate facts, the existing slug, and the approved CTA destination."
             . "\nReturn improved CTA lead and anchor text, but do not add CTA HTML or change the destination URL. Do not add H1, scripts, iframes, invented prices, testimonials, guarantees, or unsupported claims."
+            . "\nPreserve or improve readability with short paragraphs, useful lists, and a table when comparison data genuinely helps. Never output internal audit labels, quality scores, source counts, section counts, or AI workflow notes in reader-facing content."
             . "\nIf web research is used, list only URLs present in tool citations and map source_indexes to that sources array."
             . "\nRefresh plan JSON:\n" . wp_json_encode($payload['refresh_plan'] ?? [])
             . "\nMetrics JSON:\n" . wp_json_encode($payload['metrics'] ?? [])

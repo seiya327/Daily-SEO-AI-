@@ -19,6 +19,7 @@ final class AdminPage
         add_action('admin_post_dsap_reset_article_plan', [self::class, 'resetArticlePlan']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
         add_action('admin_post_dsap_retry_job', [self::class, 'retryJob']);
+        add_action('admin_post_dsap_retry_article_image', [self::class, 'retryArticleImage']);
         add_action('admin_post_dsap_delete_api_key', [self::class, 'deleteApiKey']);
         add_action('admin_post_dsap_gsc_connect', [self::class, 'gscConnect']);
         add_action('admin_post_dsap_gsc_callback', [self::class, 'gscCallback']);
@@ -67,10 +68,17 @@ final class AdminPage
         $gscSites = get_option('dsap_gsc_sites', []);
         $hasGithubToken = (string) $settings['github_token'] !== '';
         $autoSetupState = self::autoSetupState($settings, $hasKey, is_array($strategy) ? $strategy : []);
+        $nextDailyTimestamp = wp_next_scheduled(Scheduler::HOOK_DAILY_GENERATE);
+        $dailyStatus = empty($settings['daily_enabled'])
+            ? '停止中'
+            : ($nextDailyTimestamp ? '次回 ' . wp_date('n月j日 H:i', $nextDailyTimestamp, wp_timezone()) : '予約を復旧中');
         ?>
         <div class="wrap dsap-wrap" data-dsap-active-jobs="<?php echo $hasActiveJobs ? '1' : '0'; ?>">
             <h1>Daily SEO AI Publisher</h1>
             <?php self::notice(); ?>
+            <?php if (defined('DISABLE_WP_CRON') && DISABLE_WP_CRON) : ?>
+                <div class="notice notice-warning inline"><p><strong>WP-Cronが無効です。</strong> サーバーのcronからwp-cron.phpを定期実行しない限り、毎日の記事生成と改善は時刻どおりに始まりません。</p></div>
+            <?php endif; ?>
 
             <nav class="nav-tab-wrapper dsap-tabs">
                 <a class="nav-tab nav-tab-active" href="#dsap-initial-setup">初期設定</a>
@@ -130,6 +138,8 @@ final class AdminPage
                         <?php wp_nonce_field('dsap_save_quality'); ?>
                         <input type="hidden" name="action" value="dsap_save_quality">
                         <?php self::qualitySelect((string) $settings['article_quality']); ?>
+                        <p><label><input type="checkbox" name="ai_images_enabled" value="1" <?php checked(!empty($settings['ai_images_enabled'])); ?>> 記事ごとに実画像を1枚生成する</label></p>
+                        <p class="description">OpenAI画像API（gpt-image-2・低品質設定）を別途使う有料機能です。オフでも課金なしの図解と読みやすい装飾は入ります。</p>
                         <?php submit_button('記事品質を保存', 'primary', 'submit', false); ?>
                     </form>
                 </div>
@@ -187,7 +197,7 @@ final class AdminPage
                             <tr><th>サイトテーマ</th><td><?php echo esc_html((string) ($settings['site_theme'] ?: '-')); ?></td></tr>
                             <tr><th>対象読者</th><td><?php echo esc_html((string) ($settings['target_audience'] ?: '-')); ?></td></tr>
                             <tr><th>CV目標</th><td><?php echo esc_html((string) ($settings['conversion_goal'] ?: '-')); ?></td></tr>
-                            <tr><th>毎日実行</th><td><?php echo esc_html(!empty($settings['daily_enabled']) ? '有効 ' . (string) $settings['daily_time'] : '停止中'); ?></td></tr>
+                            <tr><th>毎日実行</th><td><?php echo esc_html($dailyStatus); ?></td></tr>
                             <tr><th>投稿状態</th><td><?php echo esc_html(['draft' => '下書き', 'pending' => 'レビュー待ち', 'publish' => '公開'][(string) $settings['post_status']] ?? (string) $settings['post_status']); ?></td></tr>
                         </tbody>
                     </table>
@@ -197,7 +207,7 @@ final class AdminPage
                     <h2>自動で行うこと</h2>
                     <ol class="dsap-cycle">
                         <li>API利用モードへ切り替え</li>
-                        <li>毎日実行、下書き投稿、記事数、CTA、集客/CV比率を初期化</li>
+                        <li>毎日実行、公開設定、記事数、CTA、集客/CV比率を初期化</li>
                         <li>サイト名からテーマ・読者・CV目標の不足分を補完</li>
                         <li>GitHub更新確認を有効化</li>
                         <li>AIサイト戦略の作成ジョブを開始</li>
@@ -221,7 +231,7 @@ final class AdminPage
                     <?php self::stat('今日の記事数', (string) $settings['max_daily_new_articles']); ?>
                     <?php self::stat('集客 / CV', (string) $settings['attraction_ratio'] . ' / ' . (100 - (int) $settings['attraction_ratio'])); ?>
                     <?php self::stat('計画済み', (string) count($topics) . '記事'); ?>
-                    <?php self::stat('自動実行', !empty($settings['daily_enabled']) ? '有効 ' . (string) $settings['daily_time'] : '停止中'); ?>
+                    <?php self::stat('自動実行', $dailyStatus); ?>
                 </div>
 
                 <div class="dsap-panel">
@@ -299,7 +309,7 @@ final class AdminPage
                             <label>CV目標
                                 <textarea name="<?php echo esc_attr(Settings::OPTION); ?>[conversion_goal]" rows="3" class="large-text" placeholder="例: 無料相談、資料請求、アフィリエイトリンククリック"><?php echo esc_textarea((string) $settings['conversion_goal']); ?></textarea>
                             </label>
-                            <label>アフィリエイトURL
+                            <label>CV先URL（アフィリエイト等）
                                 <input type="url" name="<?php echo esc_attr(Settings::OPTION); ?>[affiliate_url]" value="<?php echo esc_attr((string) $settings['affiliate_url']); ?>" class="large-text" placeholder="https://">
                             </label>
                         </div>
@@ -319,6 +329,7 @@ final class AdminPage
                                 <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時に有効</label></td></tr>
                                 <tr><th>NVIDIAモデル</th><td><?php self::nvidiaModelSelect((string) $settings['nvidia_model']); ?><p class="description">通常はプルダウンから選んでください。候補にないモデルだけカスタムIDを入力します。</p></td></tr>
                                 <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
+                                <tr><th>記事の実画像</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[ai_images_enabled]" value="1" <?php checked(!empty($settings['ai_images_enabled'])); ?>> OpenAI画像APIで1記事1枚生成</label><p class="description">gpt-image-2の低品質・横長WebPを使います。画像API利用料が別途発生します。</p></td></tr>
                                 <tr><th>リサーチ・執筆モデル</th><td><?php self::modelSelect('model_research', (string) $settings['model_research']); ?></td></tr>
                                 <tr><th>監査モデル</th><td><?php self::modelSelect('model_audit', (string) $settings['model_audit']); ?></td></tr>
                                 <tr><th>改善モデル</th><td><?php self::modelSelect('model_refresh', (string) $settings['model_refresh']); ?></td></tr>
@@ -436,6 +447,7 @@ final class AdminPage
         $profile = Settings::qualityProfile($quality);
         $settings = Settings::get();
         $settings['article_quality'] = array_key_exists($quality, Settings::qualityProfiles()) ? $quality : 'high';
+        $settings['ai_images_enabled'] = !empty($_POST['ai_images_enabled']);
         $settings['model_research'] = (string) $profile['model_research'];
         $settings['model_audit'] = (string) $profile['model_audit'];
         if (trim((string) $settings['global_instructions']) === '') {
@@ -564,6 +576,21 @@ final class AdminPage
             wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
         }
         self::redirect($retrying ? '再実行を予約しました。' : '再実行できるジョブが見つかりませんでした。');
+    }
+
+    public static function retryArticleImage(): void
+    {
+        self::guard('dsap_retry_article_image');
+        $job = (new JobRepository())->find(absint($_POST['job_id'] ?? 0));
+        $postId = is_array($job) ? (int) ($job['post_id'] ?? 0) : 0;
+        if ($postId <= 0 || get_post_status($postId) !== 'publish') {
+            self::redirect('画像を再生成できる公開記事が見つかりませんでした。');
+        }
+        delete_post_meta($postId, '_dsap_image_attempts');
+        delete_post_meta($postId, '_dsap_image_error');
+        wp_clear_scheduled_hook(Scheduler::HOOK_GENERATE_IMAGE, [$postId]);
+        wp_schedule_single_event(time() + 1, Scheduler::HOOK_GENERATE_IMAGE, [$postId]);
+        self::redirect('記事画像の再生成を予約しました。パイプラインで状態を確認できます。');
     }
 
     public static function deleteApiKey(): void
@@ -1053,6 +1080,12 @@ final class AdminPage
             if ($isReviewDraft) {
                 self::compactJobAction('dsap_apply_refresh_draft', '適用', (int) $job['id'], 'primary small');
                 self::compactJobAction('dsap_discard_refresh_draft', '破棄', (int) $job['id'], 'delete small');
+            } elseif (($job['job_type'] ?? '') === 'new_article'
+                && ($job['status'] ?? '') === 'complete'
+                && !empty(Settings::get()['ai_images_enabled'])
+                && !empty($job['post_id'])
+                && (int) get_post_meta((int) $job['post_id'], '_dsap_generated_image_id', true) <= 0) {
+                self::compactJobAction('dsap_retry_article_image', '画像再生成', (int) $job['id'], 'secondary small');
             } elseif (!in_array((string) $job['status'], ['complete', 'running'], true)) {
                 self::compactJobAction('dsap_retry_job', '再実行', (int) $job['id'], 'secondary small');
             } else {
@@ -1169,6 +1202,8 @@ final class AdminPage
         if ($metrics !== []) {
             $parts[] = (string) ($metrics['text_characters'] ?? 0) . '字';
             $parts[] = 'H2 ' . (string) ($metrics['h2_count'] ?? 0);
+            $parts[] = '表 ' . (string) ($metrics['table_count'] ?? 0);
+            $parts[] = 'リスト ' . (string) ($metrics['list_count'] ?? 0);
         }
         if (is_array($payload['publish_decision'] ?? null)) {
             $parts[] = '品質 ' . (string) ($payload['publish_decision']['score'] ?? 0) . '点';
@@ -1184,6 +1219,20 @@ final class AdminPage
         }
         if (!empty($payload['revision_count'])) {
             $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';
+        }
+        $postId = (int) ($job['post_id'] ?? 0);
+        if (($job['job_type'] ?? '') === 'new_article' && $postId > 0 && !empty(Settings::get()['ai_images_enabled'])) {
+            $imageId = (int) get_post_meta($postId, '_dsap_generated_image_id', true);
+            $imageError = trim((string) get_post_meta($postId, '_dsap_image_error', true));
+            if ($imageId > 0) {
+                $parts[] = '実画像: 完了';
+            } elseif ($imageError !== '') {
+                $parts[] = '実画像エラー: ' . $imageError;
+            } elseif (wp_next_scheduled(Scheduler::HOOK_GENERATE_IMAGE, [$postId])) {
+                $parts[] = '実画像: 生成待ち';
+            } else {
+                $parts[] = '実画像: 未生成';
+            }
         }
         return implode(' / ', $parts);
     }

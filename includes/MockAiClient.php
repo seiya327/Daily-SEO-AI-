@@ -103,6 +103,8 @@ final class MockAiClient implements AiClientInterface
                     $content .= '<p>' . esc_html($body) . '</p>';
                 }
             }
+            $content .= '<h2>実行前のチェックリスト</h2><ol><li>目的と成功条件を一つに絞る</li><li>総費用と運用負荷を同じ条件で比べる</li><li>見送る条件を先に決める</li></ol>';
+            $content .= '<table><thead><tr><th>判断項目</th><th>確認する内容</th></tr></thead><tbody><tr><td>適合性</td><td>対象業務と必須条件を満たすか</td></tr><tr><td>費用</td><td>導入、運用、解約までの総額</td></tr><tr><td>運用</td><td>教育、保守、例外対応の負担</td></tr></tbody></table>';
             return ['data' => [
                 'title' => $keyword . 'の基本と選び方',
                 'slug' => 'daily-seo-ai-sample-' . substr(md5($keyword), 0, 8),

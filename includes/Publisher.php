@@ -41,12 +41,16 @@ final class Publisher
         $cta = $this->ctaData((int) $postId, $funnel, $article);
         $articleType = ($funnel['article_type'] ?? 'attraction') === 'cv' ? 'cv' : 'attraction';
         if ($cta['target'] === '' && $articleType === 'cv') {
-            $decision['post_status'] = 'draft';
-            $decision['draft_reasons'][] = 'CTA target is missing';
-            update_post_meta((int) $postId, '_dsap_needs_review_reason', 'CV導線のリンク先を確定できません。');
+            $decision['publish_warnings'] = is_array($decision['publish_warnings'] ?? null) ? $decision['publish_warnings'] : [];
+            $decision['publish_warnings'][] = 'CV先URLが未設定のため、この記事はCTAなしで公開しました。';
         }
         $body = wp_kses_post((string) ($article['content_html'] ?? ''));
-        $content = ArticleVisuals::enhance($body, (string) ($article['title'] ?? ''), (string) ($funnel['article_type'] ?? 'attraction'));
+        $content = ArticleVisuals::enhance(
+            $body,
+            (string) ($article['title'] ?? ''),
+            (string) ($funnel['article_type'] ?? 'attraction'),
+            (string) ($article['answer_summary'] ?? '')
+        );
         $content .= $this->relatedLinks($article);
         $content .= $this->references($article, $research);
         $content .= $cta['html'];
@@ -74,6 +78,7 @@ final class Publisher
         update_post_meta((int) $postId, '_dsap_target_keyword', sanitize_text_field((string) ($funnel['target_keyword'] ?? '')));
         update_post_meta((int) $postId, '_dsap_meta_description', sanitize_text_field((string) ($article['meta_description'] ?? '')));
         update_post_meta((int) $postId, '_dsap_focus_keyword', sanitize_text_field((string) ($article['focus_keyword'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_answer_summary', sanitize_textarea_field((string) ($article['answer_summary'] ?? '')));
         update_post_meta((int) $postId, '_dsap_cta_target', $cta['target']);
         update_post_meta((int) $postId, '_dsap_cta_event_type', $cta['event_type']);
         update_post_meta((int) $postId, '_dsap_cta_lead', sanitize_text_field((string) ($article['cta_lead'] ?? '')));
@@ -94,6 +99,9 @@ final class Publisher
                 delete_post_meta((int) $postId, '_dsap_publish_warnings');
             }
         }
+        if ((string) $decision['post_status'] === 'publish') {
+            ArticleImageGenerator::schedule((int) $postId);
+        }
         return (int) $postId;
     }
 
@@ -102,13 +110,17 @@ final class Publisher
         $settings = Settings::get();
         $type = ($funnel['article_type'] ?? 'attraction') === 'cv' ? 'cv' : 'attraction';
         $target = '';
-        $eventType = $type === 'cv' ? 'affiliate_click' : 'internal_cta_click';
         if ($type === 'cv') {
             $target = esc_url_raw((string) ($funnel['target_url'] ?? ''));
             $target = $target !== '' ? $target : esc_url_raw((string) $settings['affiliate_url']);
+            $target = $target !== '' ? $target : $this->findConversionPageUrl();
         } else {
             $target = $this->findCvPostUrl((string) ($funnel['target_keyword'] ?? ''), (string) ($funnel['cluster_name'] ?? ''));
         }
+        $targetHost = strtolower((string) wp_parse_url($target, PHP_URL_HOST));
+        $siteHost = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+        $isExternalCv = $type === 'cv' && $targetHost !== '' && $siteHost !== '' && $targetHost !== $siteHost;
+        $eventType = $isExternalCv ? 'affiliate_click' : 'internal_cta_click';
         if ($target === '') {
             return ['html' => '', 'target' => '', 'event_type' => $eventType];
         }
@@ -122,8 +134,8 @@ final class Publisher
             $anchor = $type === 'cv' ? '公式サイトで詳細を確認する' : '比較・選び方の記事へ進む';
         }
         $trackingUrl = add_query_arg(['dsap_go' => $postId], home_url('/'));
-        $rel = $type === 'cv' ? ' rel="sponsored nofollow"' : '';
-        $disclosure = $type === 'cv' ? '<p class="dsap-disclosure"><small>' . esc_html((string) $settings['affiliate_disclosure']) . '</small></p>' : '';
+        $rel = $isExternalCv ? ' rel="sponsored nofollow"' : '';
+        $disclosure = $isExternalCv ? '<p class="dsap-disclosure"><small>' . esc_html((string) $settings['affiliate_disclosure']) . '</small></p>' : '';
         $leadHtml = $lead !== '' ? '<p class="dsap-cta-lead">' . esc_html($lead) . '</p>' : '';
         $html = '<aside class="dsap-cta dsap-cta-' . esc_attr($type) . '">' . $disclosure . $leadHtml . '<p><a href="' . esc_url($trackingUrl) . '"' . $rel . '>' . esc_html($anchor) . '</a></p></aside>';
         return ['html' => $html, 'target' => $target, 'event_type' => $eventType];
@@ -202,6 +214,17 @@ final class Publisher
         }
         $posts = get_posts($args);
         return !empty($posts[0]) ? (string) get_permalink((int) $posts[0]) : '';
+    }
+
+    private function findConversionPageUrl(): string
+    {
+        foreach (['contact', 'contact-us', 'inquiry', 'apply', 'entry', 'reservation', 'booking', 'consultation', 'document-request'] as $slug) {
+            $page = get_page_by_path($slug, OBJECT, 'page');
+            if ($page instanceof \WP_Post && $page->post_status === 'publish') {
+                return (string) get_permalink($page->ID);
+            }
+        }
+        return '';
     }
 
     private function recoverPost(int $jobId, string $placeholderSlug): int

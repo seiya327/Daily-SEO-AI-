@@ -19,6 +19,7 @@ final class Settings
             'model_audit' => 'gpt-5.6-luna',
             'model_refresh' => 'gpt-5.6-terra',
             'article_quality' => 'high',
+            'ai_images_enabled' => false,
             'keyword_strategy' => 'longtail',
             'post_status' => 'publish',
             'daily_enabled' => false,
@@ -263,6 +264,7 @@ final class Settings
         $models = array_keys(self::models());
         $qualityProfiles = array_keys(self::qualityProfiles());
         $next['article_quality'] = in_array(($input['article_quality'] ?? ''), $qualityProfiles, true) ? (string) $input['article_quality'] : 'high';
+        $next['ai_images_enabled'] = !empty($input['ai_images_enabled']);
         $keywordStrategies = array_keys(self::keywordStrategies());
         $next['keyword_strategy'] = in_array(($input['keyword_strategy'] ?? ''), $keywordStrategies, true) ? (string) $input['keyword_strategy'] : 'longtail';
         $next['model_research'] = in_array(($input['model_research'] ?? ''), $models, true) ? (string) $input['model_research'] : 'gpt-5.6-terra';

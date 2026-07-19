@@ -40,11 +40,38 @@ final class SiteContext
             ];
         }
 
+        $performance = [];
+        $metrics = new MetricsRepository();
+        $performancePostIds = array_slice(array_values(array_unique(array_merge(
+            $metrics->postIds(24),
+            $metrics->managedPostIds(24)
+        ))), 0, 24);
+        foreach ($performancePostIds as $postId) {
+            $post = get_post($postId);
+            if (!$post instanceof \WP_Post || $post->post_status !== 'publish') {
+                continue;
+            }
+            $comparison = $metrics->comparison($postId);
+            $performance[] = [
+                'post_id' => $postId,
+                'title' => (string) $post->post_title,
+                'focus_keyword' => (string) get_post_meta($postId, '_dsap_focus_keyword', true),
+                'article_type' => (string) get_post_meta($postId, '_dsap_article_type', true),
+                'cluster_name' => (string) get_post_meta($postId, '_dsap_cluster_name', true),
+                'current' => $comparison['current'],
+                'previous' => $comparison['previous'],
+                'current_cta' => $comparison['current_cta'],
+                'previous_cta' => $comparison['previous_cta'],
+                'top_queries' => $metrics->topQueries($postId, $comparison['current_range'][0], $comparison['current_range'][1], 8),
+            ];
+        }
+
         return [
             'site_name' => get_bloginfo('name'),
             'site_description' => get_bloginfo('description'),
             'existing_content' => $items,
             'planned_content' => $planned,
+            'performance_evidence' => $performance,
         ];
     }
 
