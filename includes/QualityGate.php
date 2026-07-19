@@ -132,35 +132,43 @@ final class QualityGate
         $score = min($reportedScore, $calculatedScore);
         $critical = is_array($audit['critical_issues'] ?? null) ? $audit['critical_issues'] : [];
         $unsupported = is_array($audit['unsupported_claims'] ?? null) ? $audit['unsupported_claims'] : [];
-        $status = (string) ($settings['post_status'] ?? 'draft');
+        $status = (string) ($settings['post_status'] ?? 'publish');
         $profile = Settings::qualityProfile((string) ($settings['article_quality'] ?? 'high'));
         $minimumScore = (int) ($profile['audit_score'] ?? 85);
         $reasons = [];
+        $warnings = [];
+        $blockers = [];
 
         if ($ymyl) {
-            $reasons[] = 'YMYL safety review required';
+            $blockers[] = 'YMYL safety review required';
         }
         if ($score < $minimumScore) {
-            $reasons[] = 'Quality score below threshold: ' . $score . '/' . $minimumScore;
+            $warnings[] = 'Quality score below threshold: ' . $score . '/' . $minimumScore;
         }
         if ($critical !== []) {
-            $reasons[] = 'Critical audit issues: ' . count($critical);
+            $warnings[] = 'Critical audit issues: ' . count($critical);
         }
         if ($unsupported !== []) {
-            $reasons[] = 'Unsupported claims: ' . count($unsupported);
+            $blockers[] = 'Unsupported claims: ' . count($unsupported);
         }
         if (empty($diagnostics['passed'])) {
             $errors = is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : [];
-            $reasons[] = $errors !== [] ? 'Deterministic checks failed: ' . implode(' / ', array_slice(array_map('strval', $errors), 0, 3)) : 'Deterministic checks failed';
+            $message = $errors !== [] ? 'Deterministic checks failed: ' . implode(' / ', array_slice(array_map('strval', $errors), 0, 3)) : 'Deterministic checks failed';
+            if (self::hasPublishBlocker($errors)) {
+                $blockers[] = $message;
+            } else {
+                $warnings[] = $message;
+            }
         }
 
-        if ($reasons !== []) {
+        if ($blockers !== []) {
             $status = 'draft';
         }
         if (!in_array($status, ['draft', 'pending', 'publish'], true)) {
             $status = 'draft';
-            $reasons[] = 'Invalid post status setting';
+            $blockers[] = 'Invalid post status setting';
         }
+        $reasons = $status === 'draft' ? array_values(array_merge($blockers, $warnings)) : [];
         if ($status === 'draft' && $reasons === []) {
             $reasons[] = 'Post status setting is draft';
         }
@@ -176,6 +184,8 @@ final class QualityGate
             'deterministic_errors' => count(is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : []),
             'test_mode' => !empty($payload['test_mode']),
             'draft_reasons' => $reasons,
+            'publish_warnings' => $warnings,
+            'publish_blockers' => $blockers,
         ];
     }
 
@@ -215,5 +225,15 @@ final class QualityGate
     private static function length(string $value): int
     {
         return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+    }
+
+    private static function hasPublishBlocker(array $errors): bool
+    {
+        foreach (array_map('strval', $errors) as $error) {
+            if (preg_match('/empty|H1|disallowed HTML|out-of-range source|placeholder|unfinished/i', $error)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

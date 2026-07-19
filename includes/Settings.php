@@ -268,7 +268,7 @@ final class Settings
         $next['model_research'] = in_array(($input['model_research'] ?? ''), $models, true) ? (string) $input['model_research'] : 'gpt-5.6-terra';
         $next['model_audit'] = in_array(($input['model_audit'] ?? ''), $models, true) ? (string) $input['model_audit'] : 'gpt-5.6-luna';
         $next['model_refresh'] = in_array(($input['model_refresh'] ?? ''), $models, true) ? (string) $input['model_refresh'] : 'gpt-5.6-terra';
-        $next['post_status'] = in_array(($input['post_status'] ?? ''), ['draft', 'pending', 'publish'], true) ? (string) $input['post_status'] : 'draft';
+        $next['post_status'] = in_array(($input['post_status'] ?? ''), ['draft', 'pending', 'publish'], true) ? (string) $input['post_status'] : 'publish';
         $next['daily_enabled'] = !empty($input['daily_enabled']);
         $next['daily_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($input['daily_time'] ?? '')) ? (string) $input['daily_time'] : '09:00';
         $next['max_daily_new_articles'] = max(1, min(10, absint($input['max_daily_new_articles'] ?? 1)));

@@ -433,7 +433,7 @@ final class Pipeline
             $payload['article'] = $previousArticle;
             $payload['revision_failure'] = $payload['quality_diagnostics'];
             $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
-            $payload['publish_decision'] = QualityGate::decision($payload, array_merge(Settings::get(), ['post_status' => 'draft']));
+            $payload['publish_decision'] = QualityGate::decision($payload, Settings::get());
             $repo->savePayload((int) $job['id'], $payload);
             $repo->advance((int) $job['id'], 'publish');
             Scheduler::scheduleNextStage((int) $job['id']);

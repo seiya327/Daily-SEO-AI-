@@ -1177,6 +1177,10 @@ final class AdminPage
             if ($status === 'draft' && $reasons !== []) {
                 $parts[] = '下書き理由: ' . implode(' / ', array_slice($reasons, 0, 2));
             }
+            $warnings = is_array($payload['publish_decision']['publish_warnings'] ?? null) ? array_map('strval', $payload['publish_decision']['publish_warnings']) : [];
+            if ($status === 'publish' && $warnings !== []) {
+                $parts[] = '公開済み警告: ' . implode(' / ', array_slice($warnings, 0, 2));
+            }
         }
         if (!empty($payload['revision_count'])) {
             $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';

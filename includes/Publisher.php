@@ -17,7 +17,7 @@ final class Publisher
 
         $placeholderSlug = 'dsap-job-' . $jobId;
         $postId = $this->recoverPost($jobId, $placeholderSlug);
-        $decision = is_array($payload['publish_decision'] ?? null) ? $payload['publish_decision'] : ['post_status' => 'draft'];
+        $decision = is_array($payload['publish_decision'] ?? null) ? $payload['publish_decision'] : ['post_status' => (string) Settings::get()['post_status']];
         if ($postId === 0) {
             $postId = wp_insert_post([
                 'post_title' => sanitize_text_field((string) ($article['title'] ?? $placeholderSlug)),
@@ -80,6 +80,7 @@ final class Publisher
         update_post_meta((int) $postId, '_dsap_cta_anchor', sanitize_text_field((string) ($article['cta_anchor'] ?? '')));
         update_post_meta((int) $postId, '_dsap_payload_hash', hash('sha256', wp_json_encode($payload) ?: ''));
         update_post_meta((int) $postId, '_dsap_publish_decision', wp_json_encode($decision));
+        $warnings = is_array($decision['publish_warnings'] ?? null) ? array_map('strval', $decision['publish_warnings']) : [];
         if ((string) $decision['post_status'] === 'draft') {
             $reasons = is_array($decision['draft_reasons'] ?? null) ? array_map('strval', $decision['draft_reasons']) : [];
             if ($reasons !== []) {
@@ -87,6 +88,11 @@ final class Publisher
             }
         } else {
             delete_post_meta((int) $postId, '_dsap_needs_review_reason');
+            if ($warnings !== []) {
+                update_post_meta((int) $postId, '_dsap_publish_warnings', implode(' / ', array_slice($warnings, 0, 5)));
+            } else {
+                delete_post_meta((int) $postId, '_dsap_publish_warnings');
+            }
         }
         return (int) $postId;
     }
