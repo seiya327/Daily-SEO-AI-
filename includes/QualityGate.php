@@ -168,16 +168,21 @@ final class QualityGate
         $blockers = [];
 
         if ($ymyl) {
-            $blockers[] = 'YMYL safety review required';
+            $blockers[] = '医療・健康・法律・金融など重要判断に関わる記事のため、安全確認が必要です。';
         }
         if ($score < $minimumScore) {
-            $warnings[] = 'Quality score below threshold: ' . $score . '/' . $minimumScore;
+            $warnings[] = '品質スコアが基準未満です: ' . $score . '/' . $minimumScore;
         }
         if ($critical !== []) {
-            $warnings[] = 'Critical audit issues: ' . count($critical);
+            $warnings[] = '重大な監査指摘: ' . count($critical) . '件';
         }
         if ($unsupported !== []) {
-            $blockers[] = 'Unsupported claims: ' . count($unsupported);
+            $message = '根拠を確認できない主張が残っています: ' . count($unsupported) . '件';
+            if ($status === 'publish' && !$ymyl) {
+                $warnings[] = $message;
+            } else {
+                $blockers[] = $message;
+            }
         }
         if (empty($diagnostics['passed'])) {
             $errors = is_array($diagnostics['errors'] ?? null) ? $diagnostics['errors'] : [];
@@ -194,11 +199,11 @@ final class QualityGate
         }
         if (!in_array($status, ['draft', 'pending', 'publish'], true)) {
             $status = 'draft';
-            $blockers[] = 'Invalid post status setting';
+            $blockers[] = '投稿状態の設定が不正です。';
         }
         $reasons = $status === 'draft' ? array_values(array_merge($blockers, $warnings)) : [];
         if ($status === 'draft' && $reasons === []) {
-            $reasons[] = 'Post status setting is draft';
+            $reasons[] = '設定の投稿状態が「下書き」になっています。';
         }
         return [
             'post_status' => $status,

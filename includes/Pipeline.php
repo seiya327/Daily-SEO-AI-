@@ -447,6 +447,9 @@ final class Pipeline
     private function publish(array $job): void
     {
         $payload = $this->payload($job);
+        // Re-evaluate at publish time so retried jobs do not retain an obsolete draft decision.
+        $payload['publish_decision'] = QualityGate::decision($payload, Settings::get());
+        (new JobRepository())->savePayload((int) $job['id'], $payload);
         $postId = (new Publisher())->publish((int) $job['id'], $payload);
         if (is_wp_error($postId)) {
             (new JobRepository())->fail((int) $job['id'], $postId->get_error_message(), false);

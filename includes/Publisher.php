@@ -69,6 +69,19 @@ final class Publisher
         if (is_wp_error($updated)) {
             return $updated;
         }
+        $requestedStatus = (string) $decision['post_status'];
+        $actualStatus = (string) get_post_status((int) $postId);
+        if ($requestedStatus === 'publish' && $actualStatus !== 'publish') {
+            wp_publish_post((int) $postId);
+            clean_post_cache((int) $postId);
+            $actualStatus = (string) get_post_status((int) $postId);
+            if ($actualStatus !== 'publish') {
+                return new \WP_Error(
+                    'dsap_publish_status_blocked',
+                    '公開を要求しましたが、WordPress側で「' . $actualStatus . '」に変更されました。投稿状態を変更する別プラグインまたは公開権限を確認してください。'
+                );
+            }
+        }
 
         update_post_meta((int) $postId, '_dsap_job_id', $jobId);
         update_post_meta((int) $postId, '_dsap_article_type', sanitize_key((string) ($funnel['article_type'] ?? 'attraction')));

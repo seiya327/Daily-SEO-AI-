@@ -2,7 +2,7 @@
 
 WordPress plugin for AI-assisted SEO strategy, article generation, affiliate funnels, Search Console measurement, and controlled content refreshes.
 
-Version 0.6.21 adds optional asynchronous GPT Image generation, performance-informed strategy replenishment with a 50-topic refill floor, safer managed-post refresh scope, refreshed citations during rewrites, reliable publish behavior when a CTA URL is not configured, and SEO metadata/schema compatibility improvements.
+Version 0.6.22 fixes retained draft decisions in retried jobs, verifies the actual WordPress post status, and adds one-click publishing for existing generated drafts. Version 0.6.21 added optional asynchronous GPT Image generation, performance-informed strategy replenishment with a 50-topic refill floor, safer managed-post refresh scope, refreshed citations during rewrites, and SEO metadata/schema compatibility improvements.
 
 ## Releases
 

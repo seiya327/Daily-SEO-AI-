@@ -19,6 +19,7 @@ final class AdminPage
         add_action('admin_post_dsap_reset_article_plan', [self::class, 'resetArticlePlan']);
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
         add_action('admin_post_dsap_retry_job', [self::class, 'retryJob']);
+        add_action('admin_post_dsap_publish_article_now', [self::class, 'publishArticleNow']);
         add_action('admin_post_dsap_retry_article_image', [self::class, 'retryArticleImage']);
         add_action('admin_post_dsap_delete_api_key', [self::class, 'deleteApiKey']);
         add_action('admin_post_dsap_gsc_connect', [self::class, 'gscConnect']);
@@ -593,6 +594,35 @@ final class AdminPage
         self::redirect('記事画像の再生成を予約しました。パイプラインで状態を確認できます。');
     }
 
+    public static function publishArticleNow(): void
+    {
+        self::guard('dsap_publish_article_now');
+        $job = (new JobRepository())->find(absint($_POST['job_id'] ?? 0));
+        $postId = is_array($job) && ($job['job_type'] ?? '') === 'new_article' ? (int) ($job['post_id'] ?? 0) : 0;
+        if ($postId <= 0 || get_post_status($postId) !== 'draft') {
+            self::redirect('公開できる生成記事の下書きが見つかりませんでした。');
+        }
+        $updated = wp_update_post(['ID' => $postId, 'post_status' => 'publish'], true);
+        if (is_wp_error($updated) || get_post_status($postId) !== 'publish') {
+            $message = is_wp_error($updated) ? $updated->get_error_message() : '別プラグインまたは権限設定により公開状態へ変更できませんでした。';
+            self::redirect($message);
+        }
+        delete_post_meta($postId, '_dsap_needs_review_reason');
+        update_post_meta($postId, '_dsap_manually_published_at', current_time('mysql'));
+        $payload = json_decode((string) ($job['payload'] ?? ''), true);
+        if (is_array($payload)) {
+            $decision = is_array($payload['publish_decision'] ?? null) ? $payload['publish_decision'] : [];
+            $decision['post_status'] = 'publish';
+            $decision['draft_reasons'] = [];
+            $decision['manually_published'] = true;
+            $payload['publish_decision'] = $decision;
+            (new JobRepository())->savePayload((int) $job['id'], $payload);
+            update_post_meta($postId, '_dsap_publish_decision', wp_json_encode($decision));
+        }
+        ArticleImageGenerator::schedule($postId);
+        self::redirect('生成記事を公開しました。');
+    }
+
     public static function deleteApiKey(): void
     {
         self::guard('dsap_delete_api_key');
@@ -1080,6 +1110,10 @@ final class AdminPage
             if ($isReviewDraft) {
                 self::compactJobAction('dsap_apply_refresh_draft', '適用', (int) $job['id'], 'primary small');
                 self::compactJobAction('dsap_discard_refresh_draft', '破棄', (int) $job['id'], 'delete small');
+            } elseif (($job['job_type'] ?? '') === 'new_article'
+                && !empty($job['post_id'])
+                && get_post_status((int) $job['post_id']) === 'draft') {
+                self::compactJobAction('dsap_publish_article_now', '今すぐ公開', (int) $job['id'], 'primary small');
             } elseif (($job['job_type'] ?? '') === 'new_article'
                 && ($job['status'] ?? '') === 'complete'
                 && !empty(Settings::get()['ai_images_enabled'])
