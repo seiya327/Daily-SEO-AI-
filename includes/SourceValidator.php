@@ -42,6 +42,16 @@ final class SourceValidator
                 }
             }
         }
+        foreach (($research['demand_evidence'] ?? []) as $evidence) {
+            if (!is_array($evidence) || trim((string) ($evidence['signal'] ?? '')) === '') {
+                return 'Research demand evidence is missing.';
+            }
+            foreach (($evidence['source_indexes'] ?? []) as $index) {
+                if (!isset($sources[(int) $index])) {
+                    return 'Research demand evidence references an out-of-range source index.';
+                }
+            }
+        }
 
         return '';
     }

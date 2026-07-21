@@ -68,6 +68,14 @@ final class StrategyGate
                     $errors[] = "{$label}の{$field}が具体性不足です。";
                 }
             }
+            $durationLabels = self::durationLabels(
+                (string) ($article['keyword'] ?? '') . ' '
+                . (string) ($article['entry_angle'] ?? '') . ' '
+                . (string) ($article['brief'] ?? '')
+            );
+            if (count($durationLabels) >= 3) {
+                $errors[] = "{$label}が根拠未確認の複数時間フレームに依存しています: " . implode('、', $durationLabels);
+            }
         }
 
         foreach ($articles as $article) {
@@ -162,6 +170,12 @@ final class StrategyGate
     {
         $value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
         return preg_replace('/[^\p{L}\p{N}]+/u', '', $value) ?: '';
+    }
+
+    private static function durationLabels(string $value): array
+    {
+        preg_match_all('/(?<![0-9])([1-9][0-9]{0,3}(?:分|時間|日|週間|か月|ヶ月|回))(?![0-9])/u', $value, $matches);
+        return array_values(array_unique(array_map('strval', $matches[1] ?? [])));
     }
 
     private static function length(string $value): int

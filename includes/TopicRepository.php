@@ -123,6 +123,16 @@ final class TopicRepository
         ], ['id' => $topicId], ['%s', '%s', '%s'], ['%d']);
     }
 
+    public function markRejected(int $topicId): void
+    {
+        global $wpdb;
+        $wpdb->update(Database::table('topics'), [
+            'status' => 'rejected',
+            'cooldown_until' => null,
+            'updated_at' => current_time('mysql'),
+        ], ['id' => $topicId], ['%s', '%s', '%s'], ['%d']);
+    }
+
     public function activeCount(): int
     {
         global $wpdb;

@@ -334,6 +334,18 @@ final class Pipeline
             $repo->fail((int) $job['id'], $sourceError, true);
             return;
         }
+        if (empty($payload['research']['topic_viability'])) {
+            $payload['topic_skipped'] = true;
+            $payload['topic_skip_reason'] = sanitize_text_field((string) ($payload['research']['viability_reason'] ?? '検索需要または商材との関連性を確認できませんでした。'));
+            $repo->savePayload((int) $job['id'], $payload);
+            (new TopicRepository())->markRejected((int) $job['topic_id']);
+            $repo->complete((int) $job['id'], (int) ($job['post_id'] ?? 0));
+            return;
+        }
+        if (is_array($snapshot) && ($snapshot['trigger'] ?? '') === 'rewrite') {
+            $payload['funnel']['entry_angle'] = sanitize_textarea_field((string) ($payload['research']['angle'] ?? ''));
+            $payload['funnel']['conversion_bridge'] = sanitize_textarea_field((string) ($payload['research']['conversion_bridge'] ?? ''));
+        }
 
         $repo->savePayload((int) $job['id'], $payload);
         $repo->advance((int) $job['id'], 'draft');
@@ -415,7 +427,6 @@ final class Pipeline
     {
         $repo = new JobRepository();
         $payload = $this->payload($job);
-        $previousArticle = is_array($payload['article'] ?? null) ? $payload['article'] : [];
         $result = $this->client->respond('article_v1', Contracts::schema('article_v1'), PromptBuilder::revision($payload, $job), false, (string) Settings::get()['model_research']);
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
@@ -430,14 +441,7 @@ final class Pipeline
         $payload['usage']['revision_' . $revisionCount] = $result['usage'] ?? [];
         $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
         if (empty($payload['quality_diagnostics']['passed'])) {
-            $payload['article'] = $previousArticle;
             $payload['revision_failure'] = $payload['quality_diagnostics'];
-            $payload['quality_diagnostics'] = QualityGate::diagnostics($payload);
-            $payload['publish_decision'] = QualityGate::decision($payload, Settings::get());
-            $repo->savePayload((int) $job['id'], $payload);
-            $repo->advance((int) $job['id'], 'publish');
-            Scheduler::scheduleNextStage((int) $job['id']);
-            return;
         }
         $repo->savePayload((int) $job['id'], $payload);
         $repo->advance((int) $job['id'], 'audit');

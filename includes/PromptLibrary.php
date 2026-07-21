@@ -17,6 +17,8 @@ Editorial standard for every Japanese article:
 - Write for a reader making a real decision. Resolve the main objection before the CTA and make the next action a natural continuation of the article.
 - Attraction articles must solve the immediate problem first, then bridge to one relevant CV article. CV articles must compare options fairly, disclose trade-offs, identify fit and non-fit, and explain the decision process before presenting the approved offer.
 - Do not claim guaranteed SEO results or guaranteed conversions. Do not imitate first-hand experience unless it exists in the supplied evidence.
+- Do not manufacture an ultra-specific persona, arbitrary schedule, named framework, or numbered method to create artificial uniqueness. Specificity must come from demand evidence, offer facts, real constraints, or observed site data.
+- Match depth to the decision. Concise and complete is better than long and repetitive; never pad an article to satisfy a nominal length target.
 - Output clean WordPress HTML with H2/H3, paragraphs, lists, and tables only when they improve understanding. Do not output H1, scripts, styles, iframes, forms, affiliate links, or a references section; the publisher adds approved links and references.
 PROMPT;
     }
@@ -34,6 +36,7 @@ Strategy standard:
 - Do not confuse traffic volume with business value. Prioritize reachable demand with a plausible path to the configured conversion.
 - When Search Console or conversion evidence is supplied, feed it back into the next plan: expand proven clusters, repair weak bridges, and avoid repeating topics that already underperform without a new information advantage.
 - Prefer non-commodity content grounded in a specific situation, constraint, decision, failure pattern, calculation, or observed site demand. Reject generic listicles that could be published unchanged by any site.
+- An "unexpected" angle still needs evidence. Never invent a profession, demographic, lifestyle, or arbitrary time routine just to lengthen a keyword.
 PROMPT;
     }
 
@@ -44,6 +47,7 @@ Audit standard:
 - Score the delivered article, not the plan or the writer's intent.
 - Treat unsupported claims, intent drift, generic filler, missing decision support, weak differentiation, and forced conversion language as material defects.
 - A high score requires information gain, source discipline, a trustworthy treatment of trade-offs, and a natural next step.
+- Treat replaceable product names, unverified niche personas, arbitrary numeric routines, repeated conclusions, and excessive heading fragmentation as major defects even when the article is long and well formatted.
 - Give revision instructions that are concrete enough for another writer to apply without guessing.
 PROMPT;
     }

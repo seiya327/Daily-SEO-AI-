@@ -248,6 +248,40 @@ final class JobRepository
         return true;
     }
 
+    public function restartArticle(int $jobId): bool
+    {
+        global $wpdb;
+        $job = $this->find($jobId);
+        if (!$job || ($job['job_type'] ?? '') !== 'new_article' || empty($job['post_id']) || empty($job['topic_id'])) {
+            return false;
+        }
+        $snapshot = json_decode((string) ($job['instruction_snapshot'] ?? ''), true);
+        $snapshot = is_array($snapshot) ? $snapshot : [];
+        $snapshot['trigger'] = 'rewrite';
+        $snapshot['topic'] = '';
+        $snapshot['entry_angle'] = '';
+        $snapshot['conversion_bridge'] = '';
+        $snapshotJson = wp_json_encode($snapshot);
+        $now = current_time('mysql');
+        $updated = $wpdb->update(Database::table('jobs'), [
+            'status' => 'queued',
+            'stage' => 'research',
+            'attempt' => 0,
+            'lease_token' => null,
+            'lease_expires_at' => null,
+            'instruction_snapshot' => $snapshotJson,
+            'instruction_hash' => hash('sha256', (string) $snapshotJson),
+            'payload' => null,
+            'error_message' => null,
+            'revision_id' => null,
+            'started_at' => null,
+            'finished_at' => null,
+            'scheduled_at' => $now,
+            'updated_at' => $now,
+        ], ['id' => $jobId], ['%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'], ['%d']);
+        return $updated !== false;
+    }
+
     public function complete(int $jobId, int $postId): void
     {
         global $wpdb;

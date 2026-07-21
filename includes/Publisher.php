@@ -51,6 +51,17 @@ final class Publisher
             (string) ($funnel['article_type'] ?? 'attraction'),
             (string) ($article['answer_summary'] ?? '')
         );
+        $generatedImageId = (int) get_post_meta((int) $postId, '_dsap_generated_image_id', true);
+        if ($generatedImageId > 0 && !str_contains($content, 'dsap-generated-image')) {
+            $image = wp_get_attachment_image($generatedImageId, 'large', false, [
+                'class' => 'dsap-generated-image-media',
+                'loading' => 'lazy',
+                'decoding' => 'async',
+            ]);
+            if (is_string($image) && $image !== '') {
+                $content = $this->insertAfterParagraph($content, '<figure class="dsap-generated-image">' . $image . '</figure>', 3);
+            }
+        }
         $content .= $this->relatedLinks($article);
         $content .= $this->references($article, $research);
         $content .= $cta['html'];
@@ -238,6 +249,16 @@ final class Publisher
             }
         }
         return '';
+    }
+
+    private function insertAfterParagraph(string $html, string $insert, int $target): string
+    {
+        $paragraph = 0;
+        $updated = preg_replace_callback('/<\/p>/i', static function (array $matches) use (&$paragraph, $insert, $target): string {
+            $paragraph++;
+            return (string) $matches[0] . ($paragraph === $target ? $insert : '');
+        }, $html);
+        return is_string($updated) && $updated !== $html ? $updated : $insert . $html;
     }
 
     private function recoverPost(int $jobId, string $placeholderSlug): int

@@ -20,6 +20,7 @@ final class AdminPage
         add_action('admin_post_dsap_generate_strategy', [self::class, 'generateStrategy']);
         add_action('admin_post_dsap_retry_job', [self::class, 'retryJob']);
         add_action('admin_post_dsap_publish_article_now', [self::class, 'publishArticleNow']);
+        add_action('admin_post_dsap_rewrite_article', [self::class, 'rewriteArticle']);
         add_action('admin_post_dsap_retry_article_image', [self::class, 'retryArticleImage']);
         add_action('admin_post_dsap_delete_api_key', [self::class, 'deleteApiKey']);
         add_action('admin_post_dsap_gsc_connect', [self::class, 'gscConnect']);
@@ -623,6 +624,18 @@ final class AdminPage
         self::redirect('生成記事を公開しました。');
     }
 
+    public static function rewriteArticle(): void
+    {
+        self::guard('dsap_rewrite_article');
+        $jobId = absint($_POST['job_id'] ?? 0);
+        $restarted = $jobId > 0 && (new JobRepository())->restartArticle($jobId);
+        if ($restarted) {
+            wp_clear_scheduled_hook(Scheduler::HOOK_RETRY_JOB, [$jobId]);
+            wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
+        }
+        self::redirect($restarted ? '現在の投稿を残したまま、企画検証からAI再執筆を開始しました。完成時に同じ投稿へ上書きします。' : '再執筆できる生成記事が見つかりませんでした。');
+    }
+
     public static function deleteApiKey(): void
     {
         self::guard('dsap_delete_api_key');
@@ -1107,22 +1120,37 @@ final class AdminPage
             echo '<td><span class="dsap-status dsap-status-' . esc_attr((string) $job['status']) . '">' . esc_html((string) $job['status']) . '</span></td><td>' . $post . '</td><td class="dsap-error">' . esc_html($detail) . '</td>';
             echo '<td><div class="dsap-row-actions">';
             $isReviewDraft = ($job['job_type'] ?? '') === 'refresh' && ($job['status'] ?? '') === 'complete' && !empty($job['post_id']) && (int) $job['post_id'] !== (int) $job['target_post_id'] && get_post_status((int) $job['post_id']) === 'draft';
+            $actionShown = false;
             if ($isReviewDraft) {
                 self::compactJobAction('dsap_apply_refresh_draft', '適用', (int) $job['id'], 'primary small');
                 self::compactJobAction('dsap_discard_refresh_draft', '破棄', (int) $job['id'], 'delete small');
-            } elseif (($job['job_type'] ?? '') === 'new_article'
-                && !empty($job['post_id'])
-                && get_post_status((int) $job['post_id']) === 'draft') {
-                self::compactJobAction('dsap_publish_article_now', '今すぐ公開', (int) $job['id'], 'primary small');
-            } elseif (($job['job_type'] ?? '') === 'new_article'
-                && ($job['status'] ?? '') === 'complete'
-                && !empty(Settings::get()['ai_images_enabled'])
-                && !empty($job['post_id'])
-                && (int) get_post_meta((int) $job['post_id'], '_dsap_generated_image_id', true) <= 0) {
-                self::compactJobAction('dsap_retry_article_image', '画像再生成', (int) $job['id'], 'secondary small');
+                $actionShown = true;
+            } elseif (($job['job_type'] ?? '') === 'new_article' && !empty($job['post_id'])) {
+                $postStatus = (string) get_post_status((int) $job['post_id']);
+                if ($postStatus === 'draft') {
+                    self::compactJobAction('dsap_publish_article_now', '今すぐ公開', (int) $job['id'], 'primary small');
+                    $actionShown = true;
+                }
+                if (($job['status'] ?? '') === 'complete') {
+                    self::compactJobAction('dsap_rewrite_article', 'AIで作り直す', (int) $job['id'], 'secondary small');
+                    $actionShown = true;
+                }
+                if (($job['status'] ?? '') === 'complete'
+                    && $postStatus === 'publish'
+                    && !empty(Settings::get()['ai_images_enabled'])
+                    && (int) get_post_meta((int) $job['post_id'], '_dsap_generated_image_id', true) <= 0) {
+                    self::compactJobAction('dsap_retry_article_image', '画像再生成', (int) $job['id'], 'secondary small');
+                    $actionShown = true;
+                }
+                if (!in_array((string) $job['status'], ['complete', 'running'], true)) {
+                    self::compactJobAction('dsap_retry_job', '再実行', (int) $job['id'], 'secondary small');
+                    $actionShown = true;
+                }
             } elseif (!in_array((string) $job['status'], ['complete', 'running'], true)) {
                 self::compactJobAction('dsap_retry_job', '再実行', (int) $job['id'], 'secondary small');
-            } else {
+                $actionShown = true;
+            }
+            if (!$actionShown) {
                 echo '-';
             }
             echo '</div></td></tr>';
@@ -1232,12 +1260,19 @@ final class AdminPage
             return $diagnostics !== [] ? '戦略品質 ' . (string) ($diagnostics['score'] ?? 0) . '点' : '';
         }
         $parts = [];
+        if (!empty($payload['topic_skipped'])) {
+            return '企画見送り: ' . (string) ($payload['topic_skip_reason'] ?? '検索需要または商材との関連性が弱い');
+        }
         $metrics = is_array($payload['quality_diagnostics']['metrics'] ?? null) ? $payload['quality_diagnostics']['metrics'] : [];
         if ($metrics !== []) {
             $parts[] = (string) ($metrics['text_characters'] ?? 0) . '字';
             $parts[] = 'H2 ' . (string) ($metrics['h2_count'] ?? 0);
             $parts[] = '表 ' . (string) ($metrics['table_count'] ?? 0);
             $parts[] = 'リスト ' . (string) ($metrics['list_count'] ?? 0);
+            $parts[] = '根拠 ' . (string) ($metrics['research_fact_count'] ?? 0);
+            if (!empty($metrics['duplicate_sentence_count']) || !empty($metrics['unsupported_duration_count'])) {
+                $parts[] = '冗長性警告 ' . (string) ((int) ($metrics['duplicate_sentence_count'] ?? 0) + (int) ($metrics['unsupported_duration_count'] ?? 0));
+            }
         }
         if (is_array($payload['publish_decision'] ?? null)) {
             $parts[] = '品質 ' . (string) ($payload['publish_decision']['score'] ?? 0) . '点';
@@ -1250,6 +1285,12 @@ final class AdminPage
             if ($status === 'publish' && $warnings !== []) {
                 $parts[] = '公開済み警告: ' . implode(' / ', array_slice($warnings, 0, 2));
             }
+        }
+        $audit = is_array($payload['audit'] ?? null) ? $payload['audit'] : [];
+        if ($audit !== []) {
+            $parts[] = '商品固有 ' . (string) ($audit['product_specificity'] ?? 0);
+            $parts[] = '意図妥当 ' . (string) ($audit['intent_plausibility'] ?? 0);
+            $parts[] = '非冗長 ' . (string) ($audit['non_redundancy'] ?? 0);
         }
         if (!empty($payload['revision_count'])) {
             $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';

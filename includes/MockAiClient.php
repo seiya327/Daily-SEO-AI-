@@ -71,8 +71,15 @@ final class MockAiClient implements AiClientInterface
                 ],
                 'facts' => [
                     ['claim' => '一次情報を確認することが重要です。', 'source_indexes' => [0], 'confidence' => 'high'],
-                    ['claim' => '目的に合う基準で比較します。', 'source_indexes' => [1], 'confidence' => 'medium'],
-                    ['claim' => '公開後も定期的に更新します。', 'source_indexes' => [2], 'confidence' => 'medium'],
+                    ['claim' => '目的に合う基準で比較します。', 'source_indexes' => [1], 'confidence' => 'high'],
+                    ['claim' => '利用条件は公式規約で確認します。', 'source_indexes' => [2], 'confidence' => 'high'],
+                    ['claim' => '導入費用と運用費用を分けて確認します。', 'source_indexes' => [0, 1], 'confidence' => 'medium'],
+                    ['claim' => 'サポート範囲は提供元ごとに異なります。', 'source_indexes' => [1], 'confidence' => 'medium'],
+                    ['claim' => '解約条件は申込前の判断材料です。', 'source_indexes' => [2], 'confidence' => 'medium'],
+                    ['claim' => '利用者と管理者では必要な権限が異なります。', 'source_indexes' => [0], 'confidence' => 'medium'],
+                    ['claim' => '試用時は通常業務に近い手順を使います。', 'source_indexes' => [1], 'confidence' => 'medium'],
+                    ['claim' => 'データ出力条件は乗り換え判断に影響します。', 'source_indexes' => [2], 'confidence' => 'medium'],
+                    ['claim' => '追加費用の発生条件は提供元の案内を優先します。', 'source_indexes' => [0, 2], 'confidence' => 'medium'],
                 ],
                 'sources' => [
                     ['title' => 'Example Source 1', 'url' => 'https://example.com/source-1', 'publisher' => 'Example', 'published_at' => '', 'accessed_at' => gmdate('Y-m-d')],
@@ -82,6 +89,11 @@ final class MockAiClient implements AiClientInterface
                 'related_keywords' => [$keyword . ' 比較', $keyword . ' 方法', $keyword . ' 注意点'],
                 'entities' => [$keyword],
                 'risks' => ['モック記事のため公開前確認が必要です。'],
+                'topic_viability' => true,
+                'viability_reason' => '一次情報と比較判断に必要な論点を確認できるため、記事化できます。',
+                'demand_evidence' => [
+                    ['signal' => '公式情報と比較情報を確認して導入判断を行う需要があります。', 'source_indexes' => [0, 1]],
+                ],
                 'ymyl' => false,
             ], 'sources' => ['https://example.com/source-1', 'https://example.com/source-2', 'https://example.com/source-3']];
         }
@@ -99,9 +111,9 @@ final class MockAiClient implements AiClientInterface
             $content = '<p>' . esc_html($keyword) . 'で迷っている場合は、機能一覧より先に目的と失敗条件を決めることが重要です。この記事では比較、選び方、費用、注意点を具体的な手順に落とし込みます。</p>';
             foreach ($sections as $heading => $body) {
                 $content .= '<h2>' . esc_html($heading) . '</h2>';
-                for ($i = 0; $i < 3; $i++) {
-                    $content .= '<p>' . esc_html($body) . '</p>';
-                }
+                $content .= '<p>' . esc_html($body) . '</p>';
+                $content .= '<p>' . esc_html($heading . 'では、公式情報と実際の利用条件を分けて記録し、候補間で同じ観点を使うことが重要です。確認できない点は推測で埋めず、' . $heading . 'の問い合わせ項目として残します。') . '</p>';
+                $content .= '<p>' . esc_html($heading . 'の判断結果には、採用する条件だけでなく見送る条件も記載します。' . $heading . 'の結論が目的と合わない場合は、機能の多さではなく別の候補を検討します。') . '</p>';
             }
             $content .= '<h2>実行前のチェックリスト</h2><ol><li>目的と成功条件を一つに絞る</li><li>総費用と運用負荷を同じ条件で比べる</li><li>見送る条件を先に決める</li></ol>';
             $content .= '<table><thead><tr><th>判断項目</th><th>確認する内容</th></tr></thead><tbody><tr><td>適合性</td><td>対象業務と必須条件を満たすか</td></tr><tr><td>費用</td><td>導入、運用、解約までの総額</td></tr><tr><td>運用</td><td>教育、保守、例外対応の負担</td></tr></tbody></table>';
@@ -176,6 +188,10 @@ final class MockAiClient implements AiClientInterface
                 'conversion_quality' => 90,
                 'reader_trust' => 92,
                 'internal_link_quality' => 90,
+                'product_specificity' => 88,
+                'intent_plausibility' => 90,
+                'non_redundancy' => 86,
+                'generic_or_invented_frameworks' => [],
                 'unsupported_claims' => [],
                 'critical_issues' => [],
                 'revision_instructions' => [],

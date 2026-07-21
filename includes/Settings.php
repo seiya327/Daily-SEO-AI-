@@ -96,7 +96,8 @@ final class Settings
         return [
             'standard' => [
                 'label' => '標準',
-                'min_words' => 1800,
+                'min_words' => 1200,
+                'max_words' => 3000,
                 'audit_score' => 80,
                 'max_revisions' => 1,
                 'model_research' => 'gpt-5.6-luna',
@@ -105,7 +106,8 @@ final class Settings
             ],
             'high' => [
                 'label' => '高品質',
-                'min_words' => 3000,
+                'min_words' => 1800,
+                'max_words' => 4500,
                 'audit_score' => 85,
                 'max_revisions' => 2,
                 'model_research' => 'gpt-5.6-terra',
@@ -114,7 +116,8 @@ final class Settings
             ],
             'premium' => [
                 'label' => 'かなり高品質',
-                'min_words' => 4500,
+                'min_words' => 2600,
+                'max_words' => 6500,
                 'audit_score' => 90,
                 'max_revisions' => 2,
                 'model_research' => 'gpt-5.6-terra',
@@ -135,7 +138,7 @@ final class Settings
     {
         $profile = self::qualityProfile($quality);
         return 'Article quality preset: ' . (string) $profile['label'] . "\n"
-            . 'Minimum target length: about ' . (string) $profile['min_words'] . " Japanese characters or more when the topic can support it.\n"
+            . 'Normal length range: about ' . (string) $profile['min_words'] . ' to ' . (string) ($profile['max_words'] ?? 4500) . " Japanese characters, but use fewer when the query is fully answered. Never pad to reach the range.\n"
             . 'Required quality rule: ' . (string) $profile['instruction'];
     }
 
