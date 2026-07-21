@@ -26,6 +26,13 @@ jobs:
           test -n "$plugin_version"
           test "$tag_version" = "$plugin_version"
 
+      - name: Run generated article regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/generate-article-smoke.php > /tmp/dsap-generated-article.json
+          test -s /tmp/dsap-generated-article.json
+
       - name: Build update package
         shell: bash
         run: |
@@ -37,6 +44,8 @@ jobs:
             --exclude '.github/' \
             --exclude '.gitignore' \
             --exclude 'README.md' \
+            --exclude 'tests/' \
+            --exclude 'artifacts/' \
             --exclude 'dist/'
           cd dist
           zip -qr daily-seo-ai-publisher.zip daily-seo-ai-publisher

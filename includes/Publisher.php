@@ -53,13 +53,9 @@ final class Publisher
         );
         $generatedImageId = (int) get_post_meta((int) $postId, '_dsap_generated_image_id', true);
         if ($generatedImageId > 0 && !str_contains($content, 'dsap-generated-image')) {
-            $image = wp_get_attachment_image($generatedImageId, 'large', false, [
-                'class' => 'dsap-generated-image-media',
-                'loading' => 'lazy',
-                'decoding' => 'async',
-            ]);
-            if (is_string($image) && $image !== '') {
-                $content = $this->insertAfterParagraph($content, '<figure class="dsap-generated-image">' . $image . '</figure>', 3);
+            $figure = ArticleImageGenerator::figure($generatedImageId);
+            if ($figure !== '') {
+                $content = $this->insertAfterParagraph($content, $figure, 3);
             }
         }
         $content .= $this->relatedLinks($article);
@@ -103,6 +99,8 @@ final class Publisher
         update_post_meta((int) $postId, '_dsap_meta_description', sanitize_text_field((string) ($article['meta_description'] ?? '')));
         update_post_meta((int) $postId, '_dsap_focus_keyword', sanitize_text_field((string) ($article['focus_keyword'] ?? '')));
         update_post_meta((int) $postId, '_dsap_answer_summary', sanitize_textarea_field((string) ($article['answer_summary'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_image_search_query', sanitize_text_field((string) ($article['image_search_query'] ?? '')));
+        update_post_meta((int) $postId, '_dsap_image_alt', sanitize_text_field((string) ($article['image_alt'] ?? '')));
         update_post_meta((int) $postId, '_dsap_cta_target', $cta['target']);
         update_post_meta((int) $postId, '_dsap_cta_event_type', $cta['event_type']);
         update_post_meta((int) $postId, '_dsap_cta_lead', sanitize_text_field((string) ($article['cta_lead'] ?? '')));
@@ -123,7 +121,10 @@ final class Publisher
                 delete_post_meta((int) $postId, '_dsap_publish_warnings');
             }
         }
-        if ((string) $decision['post_status'] === 'publish') {
+        $imageProvider = (string) (Settings::get()['article_image_provider'] ?? 'openverse');
+        if ($imageProvider === 'openverse') {
+            (new ArticleImageGenerator())->generate((int) $postId);
+        } elseif ($imageProvider === 'openai' && empty($decision['publish_blockers'])) {
             ArticleImageGenerator::schedule((int) $postId);
         }
         return (int) $postId;

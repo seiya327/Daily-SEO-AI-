@@ -45,10 +45,23 @@ final class QualityGate
         $factText = implode(' ', array_map(static fn ($fact): string => is_array($fact) ? (string) ($fact['claim'] ?? '') : '', $facts));
         $unsupportedDurations = self::unsupportedRepeatedDurations($text, $factText);
         $duplicateSentenceCount = self::duplicateSentenceCount($text);
+        $productTerms = self::productTerms($research, $article);
+        $productAware = $productTerms !== [] && (
+            ($funnel['article_type'] ?? '') === 'cv'
+            || ($funnel['reader_stage'] ?? '') === 'product_aware'
+        );
+        $productFactCount = count(array_filter($facts, static function ($fact) use ($productTerms): bool {
+            return is_array($fact) && self::containsAnyTerm((string) ($fact['claim'] ?? ''), $productTerms);
+        }));
+        $sectionSpecificity = self::sectionSpecificity($html, $productTerms);
         $longParagraphCount = 0;
         $adviceParagraphCount = 0;
+        $paragraphTexts = [];
         foreach (($paragraphMatches[0] ?? []) as $paragraph) {
             $paragraphText = trim(wp_strip_all_tags((string) $paragraph));
+            if ($paragraphText !== '') {
+                $paragraphTexts[] = $paragraphText;
+            }
             if (self::length($paragraphText) > 450) {
                 $longParagraphCount++;
             }
@@ -57,6 +70,7 @@ final class QualityGate
             }
         }
         $adviceParagraphRatio = $paragraphCount > 0 ? $adviceParagraphCount / $paragraphCount : 0.0;
+        $nearDuplicateParagraphPairs = self::nearDuplicateParagraphPairs($paragraphTexts);
 
         if ($html === '') {
             $errors[] = 'Article content is empty.';
@@ -64,7 +78,7 @@ final class QualityGate
         if (preg_match('/<\s*h1\b/i', $html)) {
             $errors[] = 'Article content must not contain H1.';
         }
-        if (preg_match('/<\s*(script|iframe|form)\b|on\w+\s*=/i', $html)) {
+        if (preg_match('/<\s*(script|iframe|form)\b|<[^>]+\son\w+\s*=/i', $html)) {
             $errors[] = 'Article content contains disallowed HTML.';
         }
         if ($length < $minimum) {
@@ -100,6 +114,9 @@ final class QualityGate
         }
         if ($duplicateSentenceCount > 2) {
             $errors[] = "同じ文の繰り返しが{$duplicateSentenceCount}件あります。重複を削除してください。";
+        }
+        if ($nearDuplicateParagraphPairs > 2) {
+            $errors[] = "見出し名だけを変えた近似段落が{$nearDuplicateParagraphPairs}組あります。テンプレートの反復を削除してください。";
         }
         if ($unsupportedDurations !== []) {
             $errors[] = '調査根拠のない時間・回数フレームが本文の中心になっています: ' . implode('、', $unsupportedDurations);
@@ -144,6 +161,22 @@ final class QualityGate
         if ($ctaAnchorNormalized !== '' && $ctaAnchorNormalized === $focusKeywordNormalized) {
             $errors[] = 'CTAのリンク文言が検索キーワードの貼り付けになっています。読者が得る内容または次の行動を示してください。';
         }
+        $imageSearchQuery = trim((string) ($article['image_search_query'] ?? ''));
+        $imageAlt = trim((string) ($article['image_alt'] ?? ''));
+        if ($imageSearchQuery === '' || count(preg_split('/\s+/u', $imageSearchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: []) < 2) {
+            $errors[] = '記事内容に合う挿絵の英語検索語が不足しています。';
+        }
+        if (self::length($imageAlt) < 8) {
+            $errors[] = '挿絵の代替テキストが不足しています。';
+        }
+        if ($productAware) {
+            if ($productFactCount < 3) {
+                $errors[] = '商品名を扱う記事なのに、商品固有の調査事実が3件未満です。一般論ではなく公式情報を追加してください。';
+            }
+            if ((int) $sectionSpecificity['total'] >= 3 && (float) $sectionSpecificity['ratio'] < 0.4) {
+                $errors[] = '主要セクションの多くが商品名を外しても成立します。商品固有の機能・条件・制約・代替比較へ書き直してください。';
+            }
+        }
         if (($funnel['article_type'] ?? 'attraction') === 'cv') {
             if (count($facts) < 6 || $highConfidenceFacts < 3) {
                 $errors[] = 'CV記事の商材固有事実が不足しています（事実6件以上、うち高信頼3件以上が必要）。';
@@ -180,9 +213,13 @@ final class QualityGate
                 'list_count' => $listCount,
                 'long_paragraph_count' => $longParagraphCount,
                 'duplicate_sentence_count' => $duplicateSentenceCount,
+                'near_duplicate_paragraph_pairs' => $nearDuplicateParagraphPairs,
                 'unsupported_duration_count' => count($unsupportedDurations),
                 'research_fact_count' => count($facts),
                 'high_confidence_fact_count' => $highConfidenceFacts,
+                'product_term_count' => count($productTerms),
+                'product_fact_count' => $productFactCount,
+                'product_specific_section_ratio' => $sectionSpecificity['ratio'],
                 'advice_paragraph_ratio' => round($adviceParagraphRatio, 3),
                 'verified_source_count' => count($sourceIndexes),
                 'internal_link_count' => count(is_array($article['internal_link_post_ids'] ?? null) ? $article['internal_link_post_ids'] : []),
@@ -300,7 +337,7 @@ final class QualityGate
         if (preg_match('/<\s*h1\b/i', $html)) {
             return 'Refresh article must not contain H1.';
         }
-        if (preg_match('/<\s*(script|iframe|form)\b|on\w+\s*=/i', $html)) {
+        if (preg_match('/<\s*(script|iframe|form)\b|<[^>]+\son\w+\s*=/i', $html)) {
             return 'Refresh article contains disallowed HTML.';
         }
         if (preg_match('/(判断材料の整理|根拠の量|構成の深さ|内部導線|品質判定|監査スコア|AI監査)/u', $text)) {
@@ -357,10 +394,96 @@ final class QualityGate
         return preg_replace('/[^\p{L}\p{N}]+/u', '', $value) ?: '';
     }
 
+    private static function productTerms(array $research, array $article): array
+    {
+        $values = array_map('strval', is_array($research['entities'] ?? null) ? $research['entities'] : []);
+        $values[] = (string) ($research['primary_keyword'] ?? '');
+        $values[] = (string) ($article['focus_keyword'] ?? '');
+        $values[] = (string) ($article['title'] ?? '');
+        $terms = [];
+        $generic = ['seo', 'ai', 'api', 'web', 'online', 'service', 'tool', 'app', '料金', '比較', '評判', '口コミ', '方法', '選び方', 'オンラインスクール', 'スクール', 'サービス', 'ツール', 'アプリ'];
+        foreach ($values as $value) {
+            preg_match_all('/[A-Za-z0-9][A-Za-z0-9._-]{1,30}/', $value, $matches);
+            foreach (($matches[0] ?? []) as $term) {
+                $lower = strtolower((string) $term);
+                if (in_array($lower, $generic, true) || ctype_digit(str_replace(['-', '_', '.'], '', $lower))) {
+                    continue;
+                }
+                if (str_contains((string) $term, '-') || preg_match('/[A-Z].*[A-Z]|[A-Z].*[a-z]|[a-z].*[A-Z]/', (string) $term)) {
+                    $terms[] = (string) $term;
+                }
+            }
+            $trimmed = trim($value);
+            if (!preg_match('/\s/u', $trimmed) && preg_match('/[ぁ-んァ-ヶ一-龠]/u', $trimmed) && self::length($trimmed) >= 2 && self::length($trimmed) <= 20) {
+                $isGeneric = false;
+                foreach ($generic as $word) {
+                    if (str_contains($trimmed, $word)) {
+                        $isGeneric = true;
+                        break;
+                    }
+                }
+                if (!$isGeneric) {
+                    $terms[] = $trimmed;
+                }
+            }
+        }
+        return array_values(array_unique($terms));
+    }
+
+    private static function containsAnyTerm(string $text, array $terms): bool
+    {
+        $haystack = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+        foreach ($terms as $term) {
+            $needle = function_exists('mb_strtolower') ? mb_strtolower((string) $term, 'UTF-8') : strtolower((string) $term);
+            if ($needle !== '' && str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function sectionSpecificity(string $html, array $terms): array
+    {
+        if ($terms === []) {
+            return ['specific' => 0, 'total' => 0, 'ratio' => 0.0];
+        }
+        preg_match_all('/<h2\b[^>]*>(.*?)<\/h2>(.*?)(?=<h2\b|$)/is', $html, $matches, PREG_SET_ORDER);
+        $specific = 0;
+        foreach ($matches as $match) {
+            if (self::containsAnyTerm(wp_strip_all_tags((string) ($match[1] ?? '') . ' ' . (string) ($match[2] ?? '')), $terms)) {
+                $specific++;
+            }
+        }
+        $total = count($matches);
+        return ['specific' => $specific, 'total' => $total, 'ratio' => $total > 0 ? round($specific / $total, 3) : 0.0];
+    }
+
+    private static function nearDuplicateParagraphPairs(array $paragraphs): int
+    {
+        $normalized = [];
+        foreach ($paragraphs as $paragraph) {
+            $value = self::normalizeText((string) $paragraph);
+            if (self::length($value) >= 45) {
+                $normalized[] = $value;
+            }
+        }
+        $pairs = 0;
+        $limit = min(count($normalized), 60);
+        for ($i = 0; $i < $limit; $i++) {
+            for ($j = $i + 1; $j < $limit; $j++) {
+                similar_text($normalized[$i], $normalized[$j], $percentage);
+                if ($percentage >= 72.0) {
+                    $pairs++;
+                }
+            }
+        }
+        return $pairs;
+    }
+
     private static function hasPublishBlocker(array $errors): bool
     {
         foreach (array_map('strval', $errors) as $error) {
-            if (preg_match('/empty|H1|disallowed HTML|out-of-range source|placeholder|unfinished|内部管理文言|本文が品質基準より短すぎ|本文が長すぎ|主要セクションが不足|見出しが細分化|同じ文の繰り返し|時間・回数フレーム|CTA|CV記事/i', $error)) {
+            if (preg_match('/empty|H1|disallowed HTML|out-of-range source|placeholder|unfinished|内部管理文言|本文が品質基準より短すぎ|本文が長すぎ|主要セクションが不足|見出しが細分化|同じ文の繰り返し|近似段落|時間・回数フレーム|CTA|CV記事|挿絵|商品固有|商品名を外しても/i', $error)) {
                 return true;
             }
         }

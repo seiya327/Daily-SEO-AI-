@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "usage": "Use one schema value as Responses API text.format.schema with strict=true.",
   "schemas": {
     "strategy_v1": {
@@ -408,6 +408,16 @@
           "minLength": 1,
           "maxLength": 120
         },
+        "image_search_query": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "image_alt": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 180
+        },
         "source_indexes": {
           "type": "array",
           "minItems": 3,
@@ -442,6 +452,8 @@
         "answer_summary",
         "cta_lead",
         "cta_anchor",
+        "image_search_query",
+        "image_alt",
         "source_indexes",
         "internal_link_post_ids",
         "ymyl"

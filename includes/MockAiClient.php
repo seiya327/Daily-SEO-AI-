@@ -130,6 +130,8 @@ final class MockAiClient implements AiClientInterface
                 'answer_summary' => '目的、失敗条件、総費用を先に定義し、同じ業務シナリオで候補を比較します。',
                 'cta_lead' => '判断条件が整理できたら、同じ基準で候補を比較して自社に合う選択肢を絞り込みましょう。',
                 'cta_anchor' => '失敗を避ける比較基準を見る',
+                'image_search_query' => 'adult studying online course laptop',
+                'image_alt' => 'オンライン講座の比較情報を机上で確認している様子',
                 'source_indexes' => [0, 1, 2],
                 'internal_link_post_ids' => [],
                 'ymyl' => false,

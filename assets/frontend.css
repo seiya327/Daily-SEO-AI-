@@ -6,147 +6,66 @@
 }
 
 .dsap-article-illustration {
-    position: relative;
     box-sizing: border-box;
     margin: 1.75rem 0 2rem;
-    min-height: 230px;
-    overflow: hidden;
     border: 1px solid #d8e1ea;
-    background: linear-gradient(180deg, #f7fbfd 0%, #edf7f3 58%, #fff3e6 100%);
+    background: #f7fafc;
+    padding: 1.25rem;
 }
 
-.dsap-art-sky span,
-.dsap-art-card,
-.dsap-art-card > span,
-.dsap-art-bars span,
-.dsap-art-path,
-.dsap-art-path span {
+.dsap-article-illustration > figcaption {
+    margin-bottom: 1rem;
+    color: #17324d;
+    font-weight: 700;
+}
+
+.dsap-visual-flow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.dsap-visual-step {
+    position: relative;
+    min-width: 0;
+    padding: 1rem .9rem 1rem 3rem;
+    border-top: 4px solid #1f8a70;
+    background: #fff;
+    box-shadow: 0 1px 0 rgba(23, 50, 77, .12);
+}
+
+.dsap-article-illustration.is-cv .dsap-visual-step {
+    border-top-color: #d95d39;
+}
+
+.dsap-visual-step > span {
     position: absolute;
+    top: .9rem;
+    left: .85rem;
+    display: grid;
+    width: 1.5rem;
+    height: 1.5rem;
+    place-items: center;
+    border-radius: 50%;
+    background: #17324d;
+    color: #fff;
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+.dsap-visual-step strong,
+.dsap-visual-step small {
     display: block;
-    box-sizing: border-box;
 }
 
-.dsap-art-sky span:nth-child(1) {
-    width: 82px;
-    height: 82px;
-    right: 12%;
-    top: 28px;
-    border-radius: 50%;
-    background: #f2b84b;
+.dsap-visual-step strong {
+    color: #17324d;
 }
 
-.dsap-art-sky span:nth-child(2) {
-    width: 100%;
-    height: 86px;
-    left: 0;
-    bottom: 0;
-    background: #e7f3ef;
-    clip-path: polygon(0 42%, 17% 18%, 36% 48%, 55% 22%, 76% 50%, 100% 24%, 100% 100%, 0 100%);
-}
-
-.dsap-art-sky span:nth-child(3) {
-    width: 100%;
-    height: 70px;
-    left: 0;
-    bottom: 0;
-    background: #f7eedf;
-    clip-path: polygon(0 52%, 22% 28%, 43% 62%, 66% 34%, 83% 55%, 100% 34%, 100% 100%, 0 100%);
-}
-
-.dsap-art-card {
-    left: 8%;
-    top: 42px;
-    width: min(260px, 36%);
-    height: 138px;
-    border: 1px solid #d8e1ea;
-    background: #fff;
-}
-
-.dsap-art-card > span {
-    left: 28px;
-    height: 12px;
-    border-radius: 999px;
-}
-
-.dsap-art-card > span:nth-child(1) {
-    top: 30px;
-    width: 48%;
-    background: #1f8a70;
-}
-
-.dsap-art-card > span:nth-child(2) {
-    top: 66px;
-    width: 68%;
-    background: #b9c7d3;
-}
-
-.dsap-art-card > span:nth-child(3) {
-    top: 96px;
-    width: 50%;
-    background: #d8e1ea;
-}
-
-.dsap-art-bars {
-    position: absolute;
-    inset: 0;
-}
-
-.dsap-art-bars span {
-    bottom: 52px;
-    width: min(112px, 13%);
-}
-
-.dsap-art-bars span:nth-child(1) {
-    left: 47%;
-    height: 126px;
-    background: #1f8a70;
-}
-
-.dsap-art-bars span:nth-child(2) {
-    left: 61%;
-    height: 164px;
-    background: #17324d;
-}
-
-.dsap-art-bars span:nth-child(3) {
-    left: 75%;
-    height: 94px;
-    background: #d95d39;
-}
-
-.dsap-article-illustration.is-cv .dsap-art-card > span:nth-child(1),
-.dsap-article-illustration.is-cv .dsap-art-bars span:nth-child(1) {
-    background: #d95d39;
-}
-
-.dsap-article-illustration.is-cv .dsap-art-bars span:nth-child(3) {
-    background: #f2b84b;
-}
-
-.dsap-art-path {
-    left: 12%;
-    right: 10%;
-    bottom: 42px;
-    height: 8px;
-    border-radius: 999px;
-    background: #17324d;
-}
-
-.dsap-art-path span {
-    top: -11px;
-    width: 30px;
-    height: 30px;
-    border: 5px solid #17324d;
-    border-radius: 50%;
-    background: #fff;
-}
-
-.dsap-art-path span:nth-child(1) {
-    left: 0;
-}
-
-.dsap-art-path span:nth-child(2) {
-    right: 0;
+.dsap-visual-step small {
+    margin-top: .35rem;
+    color: #526475;
+    line-height: 1.55;
 }
 
 .dsap-article-content h2,
@@ -299,6 +218,13 @@
     border: 1px solid #d8e1ea;
 }
 
+.dsap-generated-image figcaption {
+    margin-top: .55rem;
+    color: #607080;
+    font-size: .78rem;
+    line-height: 1.6;
+}
+
 @media (max-width: 640px) {
     .dsap-article-content table {
         display: block;
@@ -307,16 +233,10 @@
     }
 
     .dsap-article-illustration {
-        min-height: 190px;
+        padding: 1rem;
     }
 
-    .dsap-art-card {
-        left: 7%;
-        width: 42%;
-        height: 112px;
-    }
-
-    .dsap-art-bars span {
-        width: 14%;
+    .dsap-visual-flow {
+        grid-template-columns: 1fr;
     }
 }

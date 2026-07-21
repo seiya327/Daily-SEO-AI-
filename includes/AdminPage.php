@@ -140,8 +140,8 @@ final class AdminPage
                         <?php wp_nonce_field('dsap_save_quality'); ?>
                         <input type="hidden" name="action" value="dsap_save_quality">
                         <?php self::qualitySelect((string) $settings['article_quality']); ?>
-                        <p><label><input type="checkbox" name="ai_images_enabled" value="1" <?php checked(!empty($settings['ai_images_enabled'])); ?>> 記事ごとに実画像を1枚生成する</label></p>
-                        <p class="description">OpenAI画像API（gpt-image-2・低品質設定）を別途使う有料機能です。オフでも課金なしの図解と読みやすい装飾は入ります。</p>
+                        <p><label>記事の挿絵 <?php self::imageProviderSelect((string) $settings['article_image_provider']); ?></label></p>
+                        <p class="description">無料素材はOpenverseから商用利用可能な画像を取得し、作者・ライセンスを自動表示します。OpenAI画像だけ別料金です。</p>
                         <?php submit_button('記事品質を保存', 'primary', 'submit', false); ?>
                     </form>
                 </div>
@@ -331,7 +331,7 @@ final class AdminPage
                                 <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時に有効</label></td></tr>
                                 <tr><th>NVIDIAモデル</th><td><?php self::nvidiaModelSelect((string) $settings['nvidia_model']); ?><p class="description">通常はプルダウンから選んでください。候補にないモデルだけカスタムIDを入力します。</p></td></tr>
                                 <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
-                                <tr><th>記事の実画像</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[ai_images_enabled]" value="1" <?php checked(!empty($settings['ai_images_enabled'])); ?>> OpenAI画像APIで1記事1枚生成</label><p class="description">gpt-image-2の低品質・横長WebPを使います。画像API利用料が別途発生します。</p></td></tr>
+                                <tr><th>記事の挿絵</th><td><?php self::imageProviderSelect((string) $settings['article_image_provider'], Settings::OPTION . '[article_image_provider]'); ?><p class="description">無料素材は出典を自動表示します。OpenAI画像はgpt-image-2の利用料が発生します。</p></td></tr>
                                 <tr><th>リサーチ・執筆モデル</th><td><?php self::modelSelect('model_research', (string) $settings['model_research']); ?></td></tr>
                                 <tr><th>監査モデル</th><td><?php self::modelSelect('model_audit', (string) $settings['model_audit']); ?></td></tr>
                                 <tr><th>改善モデル</th><td><?php self::modelSelect('model_refresh', (string) $settings['model_refresh']); ?></td></tr>
@@ -449,7 +449,9 @@ final class AdminPage
         $profile = Settings::qualityProfile($quality);
         $settings = Settings::get();
         $settings['article_quality'] = array_key_exists($quality, Settings::qualityProfiles()) ? $quality : 'high';
-        $settings['ai_images_enabled'] = !empty($_POST['ai_images_enabled']);
+        $imageProvider = sanitize_key((string) ($_POST['article_image_provider'] ?? 'openverse'));
+        $settings['article_image_provider'] = array_key_exists($imageProvider, Settings::imageProviders()) ? $imageProvider : 'openverse';
+        $settings['ai_images_enabled'] = $settings['article_image_provider'] === 'openai';
         $settings['model_research'] = (string) $profile['model_research'];
         $settings['model_audit'] = (string) $profile['model_audit'];
         if (trim((string) $settings['global_instructions']) === '') {
@@ -585,8 +587,8 @@ final class AdminPage
         self::guard('dsap_retry_article_image');
         $job = (new JobRepository())->find(absint($_POST['job_id'] ?? 0));
         $postId = is_array($job) ? (int) ($job['post_id'] ?? 0) : 0;
-        if ($postId <= 0 || get_post_status($postId) !== 'publish') {
-            self::redirect('画像を再生成できる公開記事が見つかりませんでした。');
+        if ($postId <= 0 || !in_array((string) get_post_status($postId), ['publish', 'draft', 'pending'], true)) {
+            self::redirect('画像を再生成できる記事が見つかりませんでした。');
         }
         delete_post_meta($postId, '_dsap_image_attempts');
         delete_post_meta($postId, '_dsap_image_error');
@@ -628,8 +630,14 @@ final class AdminPage
     {
         self::guard('dsap_rewrite_article');
         $jobId = absint($_POST['job_id'] ?? 0);
+        $job = $jobId > 0 ? (new JobRepository())->find($jobId) : null;
         $restarted = $jobId > 0 && (new JobRepository())->restartArticle($jobId);
         if ($restarted) {
+            $postId = is_array($job) ? (int) ($job['post_id'] ?? 0) : 0;
+            if ($postId > 0 && (int) get_post_meta($postId, '_dsap_generated_image_id', true) <= 0) {
+                delete_post_meta($postId, '_dsap_image_attempts');
+                delete_post_meta($postId, '_dsap_image_error');
+            }
             wp_clear_scheduled_hook(Scheduler::HOOK_RETRY_JOB, [$jobId]);
             wp_schedule_single_event(time() + 1, Scheduler::HOOK_RETRY_JOB, [$jobId]);
         }
@@ -886,6 +894,15 @@ final class AdminPage
         echo '</select>';
     }
 
+    private static function imageProviderSelect(string $current, string $name = 'article_image_provider'): void
+    {
+        echo '<select name="' . esc_attr($name) . '">';
+        foreach (Settings::imageProviders() as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+    }
+
     private static function keywordStrategySelect(string $current, string $name = 'keyword_strategy'): void
     {
         echo '<select name="' . esc_attr($name) . '">';
@@ -1136,8 +1153,8 @@ final class AdminPage
                     $actionShown = true;
                 }
                 if (($job['status'] ?? '') === 'complete'
-                    && $postStatus === 'publish'
-                    && !empty(Settings::get()['ai_images_enabled'])
+                    && in_array($postStatus, ['publish', 'draft', 'pending'], true)
+                    && (string) (Settings::get()['article_image_provider'] ?? 'openverse') !== 'none'
                     && (int) get_post_meta((int) $job['post_id'], '_dsap_generated_image_id', true) <= 0) {
                     self::compactJobAction('dsap_retry_article_image', '画像再生成', (int) $job['id'], 'secondary small');
                     $actionShown = true;
@@ -1296,7 +1313,7 @@ final class AdminPage
             $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';
         }
         $postId = (int) ($job['post_id'] ?? 0);
-        if (($job['job_type'] ?? '') === 'new_article' && $postId > 0 && !empty(Settings::get()['ai_images_enabled'])) {
+        if (($job['job_type'] ?? '') === 'new_article' && $postId > 0 && (string) (Settings::get()['article_image_provider'] ?? 'openverse') !== 'none') {
             $imageId = (int) get_post_meta($postId, '_dsap_generated_image_id', true);
             $imageError = trim((string) get_post_meta($postId, '_dsap_image_error', true));
             if ($imageId > 0) {

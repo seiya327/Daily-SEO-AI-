@@ -37,11 +37,16 @@ final class ArticleVisuals
     {
         $label = sanitize_text_field($title) !== '' ? sanitize_text_field($title) : '記事内容のイメージ';
         $tone = $articleType === 'cv' ? 'is-cv' : 'is-attraction';
-        return '<figure class="dsap-article-illustration ' . esc_attr($tone) . '" role="img" aria-label="' . esc_attr($label) . '">'
-            . '<div class="dsap-art-sky"><span></span><span></span><span></span></div>'
-            . '<div class="dsap-art-card"><span></span><span></span><span></span></div>'
-            . '<div class="dsap-art-bars"><span></span><span></span><span></span></div>'
-            . '<div class="dsap-art-path"><span></span><span></span></div>'
+        $steps = $articleType === 'cv'
+            ? [['条件を確認', '料金・契約・制約'], ['候補を比較', '向く人・向かない人'], ['公式情報で決定', '申込前に最終確認']]
+            : [['悩みを特定', '困っている場面を整理'], ['解決策を実行', '手順と注意点を確認'], ['次の判断へ', '必要な比較記事へ進む']];
+        $items = '';
+        foreach ($steps as $index => $step) {
+            $items .= '<div class="dsap-visual-step"><span>' . esc_html((string) ($index + 1)) . '</span><strong>' . esc_html($step[0]) . '</strong><small>' . esc_html($step[1]) . '</small></div>';
+        }
+        return '<figure class="dsap-article-illustration ' . esc_attr($tone) . '" role="group" aria-label="' . esc_attr($label) . '">'
+            . '<figcaption>この記事の判断ルート</figcaption>'
+            . '<div class="dsap-visual-flow">' . $items . '</div>'
             . '</figure>';
     }
 
@@ -61,14 +66,16 @@ final class ArticleVisuals
                 }
             }
         }
-        if ($items === []) {
+        if (count($items) < 3) {
             preg_match_all('/<h2\b[^>]*>(.*?)<\/h2>/is', $html, $matches);
             foreach (($matches[1] ?? []) as $heading) {
                 $text = trim(wp_strip_all_tags((string) $heading));
                 if ($text === '' || str_contains($text, '参考') || str_contains($text, 'あわせて')) {
                     continue;
                 }
-                $items[] = $text;
+                if (!in_array($text, $items, true)) {
+                    $items[] = $text;
+                }
                 if (count($items) >= 3) {
                     break;
                 }

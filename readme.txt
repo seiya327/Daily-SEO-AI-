@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.23
+Stable tag: 0.6.24
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -37,8 +37,9 @@ This initial implementation includes:
 * Draft-first safety behavior for YMYL or failed audit articles.
 * Core meta description output only when a known SEO plugin is not active.
 * Styled headings, styled tables, colored lists, and CTA/reference styling for AI-generated posts.
-* Automatic reader-facing article illustrations without external image API cost.
-* Optional one-image-per-article OpenAI image generation with WordPress media-library storage, responsive image markup, retries, and visible pipeline status.
+* Automatic reader-facing decision-flow diagrams without image-generation cost.
+* Free Openverse image retrieval with WordPress media-library storage, responsive markup, source and license attribution, retries, and visible pipeline status.
+* Optional one-image-per-article OpenAI image generation when a paid generated image is preferred.
 * Rolling article-plan refill when the active topic backlog gets low.
 * Search Console, GA4, and CTA performance evidence fed back into future content strategy generation.
 * Yoast, Rank Math, and AIOSEO meta-description compatibility plus core BlogPosting structured data when no SEO plugin owns the output.
@@ -64,6 +65,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests read-only Search Console and GA4 scopes. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.24 =
+Added executable generated-article regression tests, deterministic product-fact, section-specificity, and near-duplicate paragraph checks, required an image plan in article output, replaced decorative placeholder art with a readable decision flow, and added free commercial-use Openverse image retrieval with local media storage and automatic attribution. Draft and published articles can now receive illustrations, while weak generic articles are blocked even when the AI self-audit score is high.
 
 = 0.6.23 =
 Replaced fixed length incentives with topic-sized ranges and upper bounds, added heading-fragmentation, duplicate-sentence, unsupported numeric-framework, CTA, and CV fact-density checks, added research-stage topic viability rejection, strengthened audits for product specificity, intent plausibility, and non-redundancy, prevented failed revisions from restoring the rejected article, and added same-post AI rewriting for poor generated articles.

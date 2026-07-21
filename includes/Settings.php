@@ -19,6 +19,7 @@ final class Settings
             'model_audit' => 'gpt-5.6-luna',
             'model_refresh' => 'gpt-5.6-terra',
             'article_quality' => 'high',
+            'article_image_provider' => 'openverse',
             'ai_images_enabled' => false,
             'keyword_strategy' => 'longtail',
             'post_status' => 'publish',
@@ -88,6 +89,15 @@ final class Settings
             'deepseek-ai/deepseek-r1' => 'DeepSeek R1',
             'deepseek-ai/deepseek-v3' => 'DeepSeek V3',
             'zai-org/glm-4.5' => 'GLM-4.5',
+        ];
+    }
+
+    public static function imageProviders(): array
+    {
+        return [
+            'openverse' => '無料素材を自動取得（推奨）',
+            'openai' => 'OpenAIで生成（有料）',
+            'none' => '実画像を使わない',
         ];
     }
 
@@ -164,6 +174,9 @@ final class Settings
             return;
         }
         $merged = self::normalizeModels(array_merge(self::defaults(), $current));
+        if (!array_key_exists('article_image_provider', $current)) {
+            $merged['article_image_provider'] = !empty($current['ai_images_enabled']) ? 'openai' : 'openverse';
+        }
         if (empty($merged['publish_default_migrated']) && (string) ($merged['post_status'] ?? '') === 'draft') {
             $merged['post_status'] = 'publish';
         }
@@ -175,6 +188,10 @@ final class Settings
     {
         $settings = get_option(self::OPTION, []);
         $merged = self::normalizeModels(array_merge(self::defaults(), is_array($settings) ? $settings : []));
+        if (is_array($settings) && !array_key_exists('article_image_provider', $settings)) {
+            $merged['article_image_provider'] = !empty($settings['ai_images_enabled']) ? 'openai' : 'openverse';
+        }
+        $merged['ai_images_enabled'] = ($merged['article_image_provider'] ?? '') === 'openai';
         if (empty($merged['publish_default_migrated']) && (string) ($merged['post_status'] ?? '') === 'draft') {
             $merged['post_status'] = 'publish';
             $merged['publish_default_migrated'] = true;
@@ -199,6 +216,9 @@ final class Settings
         }
         if (trim((string) ($settings['nvidia_model'] ?? '')) === '') {
             $settings['nvidia_model'] = 'nvidia/llama-3.3-nemotron-super-49b-v1';
+        }
+        if (!array_key_exists((string) ($settings['article_image_provider'] ?? ''), self::imageProviders())) {
+            $settings['article_image_provider'] = 'openverse';
         }
 
         return $settings;
@@ -267,7 +287,9 @@ final class Settings
         $models = array_keys(self::models());
         $qualityProfiles = array_keys(self::qualityProfiles());
         $next['article_quality'] = in_array(($input['article_quality'] ?? ''), $qualityProfiles, true) ? (string) $input['article_quality'] : 'high';
-        $next['ai_images_enabled'] = !empty($input['ai_images_enabled']);
+        $imageProvider = sanitize_key((string) ($input['article_image_provider'] ?? 'openverse'));
+        $next['article_image_provider'] = array_key_exists($imageProvider, self::imageProviders()) ? $imageProvider : 'openverse';
+        $next['ai_images_enabled'] = $next['article_image_provider'] === 'openai';
         $keywordStrategies = array_keys(self::keywordStrategies());
         $next['keyword_strategy'] = in_array(($input['keyword_strategy'] ?? ''), $keywordStrategies, true) ? (string) $input['keyword_strategy'] : 'longtail';
         $next['model_research'] = in_array(($input['model_research'] ?? ''), $models, true) ? (string) $input['model_research'] : 'gpt-5.6-terra';
