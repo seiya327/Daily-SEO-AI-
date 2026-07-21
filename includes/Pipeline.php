@@ -511,7 +511,7 @@ final class Pipeline
 
     private function isPermanent(\WP_Error $error): bool
     {
-        return !in_array($error->get_error_code(), ['dsap_openai_network', 'dsap_openai_retryable', 'dsap_openai_response_missing', 'dsap_openai_output_limit', 'dsap_nvidia_network', 'dsap_nvidia_retryable'], true);
+        return !in_array($error->get_error_code(), ['dsap_openai_network', 'dsap_openai_retryable', 'dsap_openai_response_missing', 'dsap_openai_output_limit', 'dsap_nvidia_network', 'dsap_nvidia_retryable', 'dsap_ai_fallback_retryable'], true);
     }
 
     private static function topicInstructions(array $article): string

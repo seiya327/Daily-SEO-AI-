@@ -98,7 +98,10 @@ final class GitHubUpdater
         $actual = hash_file('sha256', $tempFile);
         if ($expected === '' || !is_string($actual) || !hash_equals(strtolower($expected), strtolower($actual))) {
             @unlink($tempFile);
-            return new \WP_Error('dsap_update_checksum', '更新ZIPのSHA-256検証に失敗しました。更新を中止しました。');
+            $detail = $expected !== '' && is_string($actual)
+                ? ' expected=' . substr(strtolower($expected), 0, 12) . ' actual=' . substr(strtolower($actual), 0, 12)
+                : '';
+            return new \WP_Error('dsap_update_checksum', '更新ZIPのSHA-256検証に失敗しました。更新を中止しました。' . $detail);
         }
         return $tempFile;
     }
@@ -151,10 +154,9 @@ final class GitHubUpdater
         if (is_wp_error($sha256)) {
             return $sha256;
         }
-        $token = (string) Settings::get()['github_token'];
         return $this->cacheRelease([
             'version' => ltrim((string) ($json['tag_name'] ?? ''), 'vV'),
-            'package' => $token !== '' ? (string) $zip['url'] : (string) $zip['browser_download_url'],
+            'package' => $this->publicAssetUrl($zip),
             'sha256' => $sha256,
             'notes' => (string) ($json['body'] ?? ''),
             'published_at' => (string) ($json['published_at'] ?? ''),
@@ -296,8 +298,7 @@ final class GitHubUpdater
 
     private function checksum(array $asset): string|\WP_Error
     {
-        $token = (string) Settings::get()['github_token'];
-        $url = $token !== '' ? (string) $asset['url'] : (string) $asset['browser_download_url'];
+        $url = $this->publicAssetUrl($asset);
         $response = $this->assetRequest($url);
         if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
             return new \WP_Error('dsap_github_checksum_download', 'SHA-256ファイルを取得できませんでした。');
@@ -307,6 +308,12 @@ final class GitHubUpdater
             return new \WP_Error('dsap_github_checksum_format', 'SHA-256ファイルの形式が不正です。');
         }
         return strtolower($matches[1]);
+    }
+
+    private function publicAssetUrl(array $asset): string
+    {
+        $browserUrl = esc_url_raw((string) ($asset['browser_download_url'] ?? ''));
+        return $browserUrl !== '' ? $browserUrl : esc_url_raw((string) ($asset['url'] ?? ''));
     }
 
     private function asset(array $release, string $name): ?array
@@ -354,7 +361,9 @@ final class GitHubUpdater
         $args = [
             'timeout' => $filename !== '' ? 300 : 20,
             'redirection' => $isApiBinary ? 0 : 5,
-            'headers' => $this->headers(true),
+            'headers' => $isApiBinary
+                ? $this->headers(true)
+                : ['User-Agent' => 'Daily-SEO-AI-Publisher/' . DSAP_VERSION],
         ];
         if ($filename !== '') {
             $args['stream'] = true;

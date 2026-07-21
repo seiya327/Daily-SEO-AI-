@@ -127,7 +127,7 @@ final class AdminPage
                         <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'OpenAI APIキー'); ?>">
                         <p class="description">OpenAIの利用枠が尽きた時の予備として、NVIDIA APIキーも保存できます。</p>
                         <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? 'NVIDIA設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>">
-                        <label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時にNVIDIAへ自動切替</label>
+                        <label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAIの利用枠・出力上限・通信障害時にNVIDIAへ自動切替</label>
                         <p><?php self::nvidiaModelSelect((string) $settings['nvidia_model'], 'setup'); ?></p>
                         <?php submit_button($hasKey ? 'APIキーを更新' : 'APIキーを保存', 'primary', 'submit', false); ?>
                     </form>
@@ -327,8 +327,8 @@ final class AdminPage
                             <h3>詳細設定</h3>
                             <table class="form-table" role="presentation">
                                 <tr><th><label for="dsap-key">OpenAI APIキー</label></th><td><input id="dsap-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>"><p class="description">保存済みキーは画面に再表示しません。</p></td></tr>
-                                <tr><th><label for="dsap-nvidia-key">NVIDIA APIキー</label></th><td><input id="dsap-nvidia-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>"> <?php if ($hasNvidiaKey) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_nvidia_api_key]" value="1"> 保存済みNVIDIAキーを削除</label><?php endif; ?><p class="description">OpenAIのquota超過時だけ自動でNVIDIAへ切り替えます。</p></td></tr>
-                                <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI quota時に有効</label></td></tr>
+                                <tr><th><label for="dsap-nvidia-key">NVIDIA APIキー</label></th><td><input id="dsap-nvidia-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>"> <?php if ($hasNvidiaKey) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_nvidia_api_key]" value="1"> 保存済みNVIDIAキーを削除</label><?php endif; ?><p class="description">OpenAIの利用枠超過、出力上限、通信・一時障害時にNVIDIAへ切り替えます。</p></td></tr>
+                                <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI障害時に有効</label></td></tr>
                                 <tr><th>NVIDIAモデル</th><td><?php self::nvidiaModelSelect((string) $settings['nvidia_model']); ?><p class="description">通常はプルダウンから選んでください。候補にないモデルだけカスタムIDを入力します。</p></td></tr>
                                 <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
                                 <tr><th>記事の挿絵</th><td><?php self::imageProviderSelect((string) $settings['article_image_provider'], Settings::OPTION . '[article_image_provider]'); ?><p class="description">無料素材は出典を自動表示します。OpenAI画像はgpt-image-2の利用料が発生します。</p></td></tr>
@@ -1311,6 +1311,12 @@ final class AdminPage
         }
         if (!empty($payload['revision_count'])) {
             $parts[] = '再執筆 ' . (string) $payload['revision_count'] . '回';
+        }
+        foreach (array_reverse(is_array($payload['usage'] ?? null) ? $payload['usage'] : []) as $usage) {
+            if (is_array($usage) && ($usage['provider'] ?? '') === 'nvidia') {
+                $parts[] = 'AI: NVIDIAへ自動切替済み';
+                break;
+            }
         }
         $postId = (int) ($job['post_id'] ?? 0);
         if (($job['job_type'] ?? '') === 'new_article' && $postId > 0 && (string) (Settings::get()['article_image_provider'] ?? 'openverse') !== 'none') {
