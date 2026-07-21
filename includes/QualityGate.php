@@ -327,6 +327,13 @@ final class QualityGate
         );
     }
 
+    public static function blocksRequestedPublication(array $decision, array $settings): bool
+    {
+        return (string) ($settings['post_status'] ?? 'publish') === 'publish'
+            && (string) ($decision['post_status'] ?? 'draft') === 'draft'
+            && !empty($decision['publish_blockers']);
+    }
+
     public static function hardChecksRefresh(array $article): string
     {
         $html = (string) ($article['content_html'] ?? '');

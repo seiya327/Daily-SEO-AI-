@@ -2,7 +2,7 @@
 
 WordPress plugin for AI-assisted SEO strategy, article generation, affiliate funnels, Search Console measurement, and controlled content refreshes.
 
-Version 0.6.24 adds executable article-output regression tests, blocks replaceable product copy and near-duplicate paragraphs, and adds free attributed Openverse illustrations plus a meaningful decision-flow visual. Version 0.6.23 replaced length-driven generation with evidence and concision gates and added same-post AI rewriting.
+Version 0.6.25 prevents publish-mode quality failures from being completed as WordPress drafts and makes one bounded replacement attempt with another planned topic. Version 0.6.24 added executable article-output regression tests, blocked replaceable product copy and near-duplicate paragraphs, and added free attributed Openverse illustrations plus a meaningful decision-flow visual.
 
 ## Releases
 

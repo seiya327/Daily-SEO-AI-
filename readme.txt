@@ -4,7 +4,7 @@ Tags: seo, ai, openai, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.24
+Stable tag: 0.6.25
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
@@ -65,6 +65,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests read-only Search Console and GA4 scopes. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.6.25 =
+Stopped publish-mode jobs from completing as WordPress drafts when final quality blockers remain. Such jobs now fail with an explicit reason before creating a post, reject the exhausted topic, and daily automation makes one bounded attempt with a different planned topic. Intentional draft mode is unchanged.
 
 = 0.6.24 =
 Added executable generated-article regression tests, deterministic product-fact, section-specificity, and near-duplicate paragraph checks, required an image plan in article output, replaced decorative placeholder art with a readable decision flow, and added free commercial-use Openverse image retrieval with local media storage and automatic attribution. Draft and published articles can now receive illustrations, while weak generic articles are blocked even when the AI self-audit score is high.

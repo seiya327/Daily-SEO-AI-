@@ -418,7 +418,13 @@ final class Pipeline
         $repo->savePayload((int) $job['id'], $payload);
         $profile = Settings::qualityProfile();
         $maxRevisions = max(0, (int) ($profile['max_revisions'] ?? 1));
-        $nextStage = QualityGate::needsRevision($payload, Settings::get()) && $revisionCount < $maxRevisions ? 'revise' : 'publish';
+        $settings = Settings::get();
+        $needsRevision = QualityGate::needsRevision($payload, $settings);
+        if ($needsRevision && $revisionCount >= $maxRevisions && QualityGate::blocksRequestedPublication($payload['publish_decision'], $settings)) {
+            $this->stopBlockedPublication($job, $payload);
+            return;
+        }
+        $nextStage = $needsRevision && $revisionCount < $maxRevisions ? 'revise' : 'publish';
         $repo->advance((int) $job['id'], $nextStage);
         Scheduler::scheduleNextStage((int) $job['id']);
     }
@@ -454,6 +460,10 @@ final class Pipeline
         // Re-evaluate at publish time so retried jobs do not retain an obsolete draft decision.
         $payload['publish_decision'] = QualityGate::decision($payload, Settings::get());
         (new JobRepository())->savePayload((int) $job['id'], $payload);
+        if (QualityGate::blocksRequestedPublication($payload['publish_decision'], Settings::get())) {
+            $this->stopBlockedPublication($job, $payload);
+            return;
+        }
         $postId = (new Publisher())->publish((int) $job['id'], $payload);
         if (is_wp_error($postId)) {
             (new JobRepository())->fail((int) $job['id'], $postId->get_error_message(), false);
@@ -465,6 +475,32 @@ final class Pipeline
         }
 
         (new JobRepository())->complete((int) $job['id'], (int) $postId);
+    }
+
+    private function stopBlockedPublication(array $job, array $payload): void
+    {
+        $decision = is_array($payload['publish_decision'] ?? null) ? $payload['publish_decision'] : [];
+        $reasons = is_array($decision['publish_blockers'] ?? null) ? array_map('strval', $decision['publish_blockers']) : [];
+        $payload['quality_exhausted'] = true;
+        $payload['quality_exhausted_at'] = current_time('mysql');
+        $replacementId = 0;
+        if (empty($payload['test_mode']) && !empty($job['topic_id'])) {
+            (new TopicRepository())->markRejected((int) $job['topic_id']);
+            $replacementId = Scheduler::scheduleQualityReplacement($job);
+        }
+        if ($replacementId > 0) {
+            $payload['quality_replacement_job_id'] = $replacementId;
+        }
+        $message = '品質基準を満たさないため公開を中止しました。下書き投稿は作成していません。';
+        if ($replacementId > 0) {
+            $message .= ' 別の記事候補をジョブ#' . $replacementId . 'で自動実行します。';
+        }
+        if ($reasons !== []) {
+            $message .= ' ' . implode(' / ', array_slice($reasons, 0, 3));
+        }
+        $repo = new JobRepository();
+        $repo->savePayload((int) $job['id'], $payload);
+        $repo->fail((int) $job['id'], $message, true);
     }
 
     private function payload(array $job): array

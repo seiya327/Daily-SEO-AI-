@@ -135,7 +135,7 @@ final class AdminPage
 
                 <div class="dsap-panel">
                     <h2>記事品質</h2>
-                    <p class="description">検索意図への即答、情報利得、比較基準、失敗例、注意点、根拠、自然なCV導線を含む標準編集ルールは常に適用されます。ここでは文字量、監査基準、自動再執筆回数をまとめて調整します。不合格時の再執筆では追加のAPI利用料が発生します。</p>
+                    <p class="description">検索意図への即答、情報利得、比較基準、失敗例、注意点、根拠、自然なCV導線を含む標準編集ルールは常に適用されます。ここでは文字量、監査基準、自動再執筆回数をまとめて調整します。不合格時の再執筆では追加のAPI利用料が発生します。公開設定で最終不合格になった記事は下書き投稿として残さず、日次実行では別候補を1回だけ自動実行します。</p>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <?php wp_nonce_field('dsap_save_quality'); ?>
                         <input type="hidden" name="action" value="dsap_save_quality">

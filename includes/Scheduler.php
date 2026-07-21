@@ -114,7 +114,7 @@ final class Scheduler
         }
     }
 
-    public static function queueDailyJob(string $trigger, ?string $preferredType = null): int
+    public static function queueDailyJob(string $trigger, ?string $preferredType = null, int $qualityReplacementDepth = 0): int
     {
         $topicRepo = new TopicRepository();
         if ($preferredType === 'attraction') {
@@ -134,11 +134,29 @@ final class Scheduler
             return 0;
         }
 
-        $jobId = (new JobRepository())->createNewArticleJob($topic, $trigger);
+        $jobId = (new JobRepository())->createNewArticleJob($topic, $trigger, $qualityReplacementDepth);
         if ($jobId > 0) {
             $topicRepo->markUsed((int) $topic['id']);
         }
 
+        return $jobId;
+    }
+
+    public static function scheduleQualityReplacement(array $job): int
+    {
+        $snapshot = json_decode((string) ($job['instruction_snapshot'] ?? ''), true);
+        $snapshot = is_array($snapshot) ? $snapshot : [];
+        $trigger = (string) ($snapshot['trigger'] ?? '');
+        $depth = max(0, (int) ($snapshot['quality_replacement_depth'] ?? 0));
+        if (!in_array($trigger, ['cron', 'quality_replacement'], true) || $depth >= 1) {
+            return 0;
+        }
+
+        $preferredType = (string) ($snapshot['article_type'] ?? '');
+        $jobId = self::queueDailyJob('quality_replacement', in_array($preferredType, ['attraction', 'cv'], true) ? $preferredType : null, $depth + 1);
+        if ($jobId > 0) {
+            wp_schedule_single_event(time() + 30, self::HOOK_RETRY_JOB, [$jobId]);
+        }
         return $jobId;
     }
 

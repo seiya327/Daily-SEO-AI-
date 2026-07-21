@@ -56,6 +56,12 @@ $badPayload['publish_decision'] = QualityGate::decision($badPayload, Settings::g
 if (($badPayload['publish_decision']['post_status'] ?? '') !== 'draft') {
     throw new RuntimeException('Generic product article was not blocked from publishing.');
 }
+if (!QualityGate::blocksRequestedPublication($badPayload['publish_decision'], Settings::get())) {
+    throw new RuntimeException('Blocked article could still complete as a draft while publish was requested.');
+}
+if (QualityGate::blocksRequestedPublication($badPayload['publish_decision'], array_merge(Settings::get(), ['post_status' => 'draft']))) {
+    throw new RuntimeException('Intentional draft mode was incorrectly treated as a failed publication.');
+}
 if ((int) ($badPayload['quality_diagnostics']['metrics']['near_duplicate_paragraph_pairs'] ?? 0) < 3) {
     throw new RuntimeException('Near-duplicate paragraphs were not detected.');
 }
@@ -73,6 +79,9 @@ if (empty($goodPayload['quality_diagnostics']['passed'])) {
 }
 if (($goodPayload['publish_decision']['post_status'] ?? '') !== 'publish') {
     throw new RuntimeException('Product-specific article was not approved for publishing.');
+}
+if (QualityGate::blocksRequestedPublication($goodPayload['publish_decision'], Settings::get())) {
+    throw new RuntimeException('Approved article was incorrectly blocked from publishing.');
 }
 
 $article = $goodPayload['article'];

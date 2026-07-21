@@ -6,7 +6,7 @@ namespace DSAP;
 
 final class JobRepository
 {
-    public function createNewArticleJob(array $topic, string $trigger): int
+    public function createNewArticleJob(array $topic, string $trigger, int $qualityReplacementDepth = 0): int
     {
         global $wpdb;
 
@@ -27,6 +27,7 @@ final class JobRepository
             'conversion_goal' => $settings['conversion_goal'],
             'affiliate_url' => $settings['affiliate_url'],
             'affiliate_anchor' => $settings['affiliate_anchor'],
+            'quality_replacement_depth' => max(0, $qualityReplacementDepth),
         ];
         $snapshotJson = wp_json_encode($snapshot);
         $runKey = 'new:' . (string) $topic['id'] . ':' . gmdate('Ymd') . ':' . wp_generate_uuid4();
