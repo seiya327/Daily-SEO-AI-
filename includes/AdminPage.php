@@ -67,7 +67,6 @@ final class AdminPage
         $gscConnected = GoogleOAuth::connected();
         $lastSync = get_option('dsap_gsc_last_sync', []);
         $gscSites = get_option('dsap_gsc_sites', []);
-        $hasGithubToken = (string) $settings['github_token'] !== '';
         $autoSetupState = self::autoSetupState($settings, $hasKey, is_array($strategy) ? $strategy : []);
         $nextDailyTimestamp = wp_next_scheduled(Scheduler::HOOK_DAILY_GENERATE);
         $dailyStatus = empty($settings['daily_enabled'])
@@ -345,7 +344,6 @@ final class AdminPage
                                 <tr><th>改善原稿の扱い</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[refresh_auto_apply]" value="1" <?php checked($settings['refresh_auto_apply']); ?>> 監査85点以上だけ既存記事へ自動反映</label></td></tr>
                                 <tr><th><label for="dsap-refresh-instructions">改善への追加指示</label></th><td><textarea id="dsap-refresh-instructions" name="<?php echo esc_attr(Settings::OPTION); ?>[refresh_instructions]" rows="4" class="large-text"><?php echo esc_textarea((string) $settings['refresh_instructions']); ?></textarea></td></tr>
                                 <tr><th>GitHub更新</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[github_updates_enabled]" value="1" <?php checked($settings['github_updates_enabled']); ?>> GitHub Releasesから更新を確認</label><br><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[github_auto_update]" value="1" <?php checked($settings['github_auto_update']); ?>> 安定Releaseを自動更新</label></td></tr>
-                                <tr><th><label for="dsap-github-token">GitHubトークン</label></th><td><input id="dsap-github-token" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[github_token]" value="" autocomplete="new-password" class="regular-text" placeholder="<?php echo esc_attr($hasGithubToken ? '設定済み（空欄なら維持）' : '非公開リポジトリの場合のみ'); ?>"> <?php if ($hasGithubToken) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_github_token]" value="1"> 保存済みトークンを削除</label><?php endif; ?><p class="description">公開リポジトリでは不要です。非公開の場合は対象リポジトリのContents読み取り権限を持つfine-grained tokenを使います。</p></td></tr>
                                 <tr><th>テストモード</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[mock_mode]" value="1" <?php checked($settings['mock_mode']); ?>> APIを使わずサンプルデータで動作確認</label></td></tr>
                                 <tr><th>アンインストール</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_data_on_uninstall]" value="1" <?php checked($settings['delete_data_on_uninstall']); ?>> 削除時にプラグインデータも消す</label></td></tr>
                             </table>

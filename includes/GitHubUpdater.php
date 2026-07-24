@@ -195,10 +195,7 @@ final class GitHubUpdater
             return new \WP_Error('dsap_github_no_tag', 'GitHub Releaseが無く、v1.2.3形式のタグも見つかりませんでした。');
         }
 
-        $token = (string) Settings::get()['github_token'];
-        $package = $token !== ''
-            ? 'https://api.github.com/repos/' . self::REPOSITORY . '/zipball/' . rawurlencode($latestName)
-            : 'https://github.com/' . self::REPOSITORY . '/archive/refs/tags/' . rawurlencode($latestName) . '.zip';
+        $package = 'https://github.com/' . self::REPOSITORY . '/archive/refs/tags/' . rawurlencode($latestName) . '.zip';
 
         return $this->cacheRelease([
             'version' => $latestVersion,
@@ -333,10 +330,6 @@ final class GitHubUpdater
             'User-Agent' => 'Daily-SEO-AI-Publisher/' . DSAP_VERSION,
             'X-GitHub-Api-Version' => '2022-11-28',
         ];
-        $token = trim((string) Settings::get()['github_token']);
-        if ($token !== '') {
-            $headers['Authorization'] = 'Bearer ' . $token;
-        }
         return $headers;
     }
 

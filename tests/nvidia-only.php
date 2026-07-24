@@ -37,12 +37,13 @@ $legacy = array_merge(Settings::defaults(), [
     'model_audit' => 'gpt-5.6-luna',
     'model_refresh' => 'gpt-5.6-terra',
     'article_image_provider' => 'openai',
+    'github_token' => 'stale-public-repository-token',
 ]);
 $GLOBALS['dsap_test_options'][Settings::OPTION] = $legacy;
 Settings::ensureDefaults();
 $migrated = $GLOBALS['dsap_test_options'][Settings::OPTION];
 
-foreach (['openai_api_key', 'nvidia_fallback_enabled', 'model_research', 'model_audit', 'model_refresh'] as $removed) {
+foreach (['openai_api_key', 'nvidia_fallback_enabled', 'model_research', 'model_audit', 'model_refresh', 'github_token'] as $removed) {
     if (array_key_exists($removed, $migrated)) {
         throw new RuntimeException("Legacy OpenAI setting was not removed: {$removed}");
     }
@@ -64,4 +65,4 @@ if (!$missingKey instanceof MockAiClient) {
     throw new RuntimeException('Missing NVIDIA key did not fail closed to mock mode.');
 }
 
-echo "provider=nvidia legacy_openai=removed images=openverse mock_mode=isolated\n";
+echo "provider=nvidia legacy_openai=removed github_token=removed images=openverse mock_mode=isolated\n";

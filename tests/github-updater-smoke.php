@@ -38,6 +38,10 @@ function wp_tempnam(string $filename = ''): string|false
 function wp_remote_get(string $url, array $args = []): array|WP_Error
 {
     $GLOBALS['dsap_http_calls'][] = ['url' => $url, 'args' => $args];
+    $headers = is_array($args['headers'] ?? null) ? $args['headers'] : [];
+    if (isset($headers['Authorization'])) {
+        throw new RuntimeException('Authorization header leaked to a public GitHub URL.');
+    }
     if (str_contains($url, '/releases/assets/')) {
         throw new RuntimeException('Authenticated GitHub asset API URL was used for a public release.');
     }
@@ -59,10 +63,6 @@ function wp_remote_get(string $url, array $args = []): array|WP_Error
                 ],
             ],
         ])];
-    }
-    $headers = is_array($args['headers'] ?? null) ? $args['headers'] : [];
-    if (isset($headers['Authorization'])) {
-        throw new RuntimeException('Authorization header leaked to a public release download URL.');
     }
     if (str_ends_with($url, '.zip.sha256')) {
         return ['response' => ['code' => 200], 'body' => $GLOBALS['dsap_zip_hash'] . "  daily-seo-ai-publisher.zip\n"];
@@ -118,4 +118,4 @@ if (is_wp_error($download) || !is_string($download) || hash_file('sha256', $down
 }
 @unlink($download);
 
-echo "public_asset=browser_download_url authorization=none checksum=match\n";
+echo "release_api=public public_asset=browser_download_url authorization=none checksum=match\n";

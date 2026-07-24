@@ -4,7 +4,7 @@ Tags: seo, ai, nvidia, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.7.0
+Stable tag: 0.7.1
 License: GPLv2 or later
 
 Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with NVIDIA AI.
@@ -64,6 +64,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests read-only Search Console and GA4 scopes. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.7.1 =
+Made update discovery, Release metadata, checksums, and ZIP downloads use the public GitHub repository without authentication. Removed the GitHub token setting and automatically deletes stale saved tokens that could make GitHub return 401 or 403 and hide available updates.
 
 = 0.7.0 =
 Switched all live AI work to NVIDIA only. Removed OpenAI credentials, model selectors, fallback routing, background response handling, and paid OpenAI image generation. Existing OpenAI keys are deleted during migration and OpenAI image settings move to free Openverse. Added NVIDIA source discovery followed by WordPress safe-HTTP verification and page retrieval, so research and strategy generation receive only reachable source content. Added NVIDIA-only provider and grounding regression tests.

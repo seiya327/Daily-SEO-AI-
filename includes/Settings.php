@@ -44,7 +44,6 @@ final class Settings
             'refresh_instructions' => '',
             'github_updates_enabled' => true,
             'github_auto_update' => false,
-            'github_token' => '',
             'global_instructions' => '',
             'mock_mode' => true,
             'delete_data_on_uninstall' => false,
@@ -186,7 +185,8 @@ final class Settings
             $settings['nvidia_fallback_enabled'],
             $settings['model_research'],
             $settings['model_audit'],
-            $settings['model_refresh']
+            $settings['model_refresh'],
+            $settings['github_token']
         );
         if (trim((string) ($settings['nvidia_model'] ?? '')) === '') {
             $settings['nvidia_model'] = 'nvidia/llama-3.3-nemotron-super-49b-v1';
@@ -284,14 +284,6 @@ final class Settings
         $next['refresh_instructions'] = sanitize_textarea_field((string) ($input['refresh_instructions'] ?? ''));
         $next['github_updates_enabled'] = !empty($input['github_updates_enabled']);
         $next['github_auto_update'] = !empty($input['github_auto_update']);
-        $incomingGithubToken = isset($input['github_token']) ? trim((string) wp_unslash($input['github_token'])) : '';
-        if (!empty($input['delete_github_token'])) {
-            $next['github_token'] = '';
-        } elseif ($incomingGithubToken !== '') {
-            $next['github_token'] = sanitize_text_field($incomingGithubToken);
-        } else {
-            $next['github_token'] = (string) ($old['github_token'] ?? '');
-        }
         $next['global_instructions'] = sanitize_textarea_field((string) ($input['global_instructions'] ?? ''));
         $next['mock_mode'] = !empty($input['mock_mode']);
         $next['delete_data_on_uninstall'] = !empty($input['delete_data_on_uninstall']);
