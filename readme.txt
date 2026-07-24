@@ -1,13 +1,13 @@
 === Daily SEO AI Publisher ===
 Contributors: codex
-Tags: seo, ai, openai, publishing
+Tags: seo, ai, nvidia, publishing
 Requires at least: 6.5
 Tested up to: 6.6
 Requires PHP: 8.0
-Stable tag: 0.6.26
+Stable tag: 0.7.0
 License: GPLv2 or later
 
-Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with OpenAI.
+Daily SEO AI Publisher researches, drafts, audits, and prepares SEO-focused WordPress posts with NVIDIA AI.
 
 == Description ==
 
@@ -15,16 +15,16 @@ This initial implementation includes:
 
 * WordPress admin settings page.
 * API key entry in WordPress admin. Existing keys are never printed back to HTML.
-* Optional NVIDIA API fallback when OpenAI quota, output limits, network errors, or temporary processing failures stop generation.
+* NVIDIA-only AI generation for strategy, research, drafting, audit, revision, and improvement.
 * Mock mode for testing without an API key.
 * AI-generated attraction-to-conversion content strategy and topic queue.
-* Model dropdowns, daily article count, funnel ratio, affiliate CTA settings, and a safe test run.
-* Article quality presets that adjust model selection, article depth, and audit thresholds.
+* NVIDIA model dropdown, daily article count, funnel ratio, affiliate CTA settings, and a safe test run.
+* Article quality presets that adjust article depth, revision count, and audit thresholds.
 * Long-tail and unexpected-entry keyword strategy controls for content planning.
 * Built-in editorial standards for intent matching, information gain, decision support, source discipline, and natural conversion paths.
 * Deterministic strategy validation with one automatic repair pass for generic, duplicated, disconnected, or cannibalizing plans.
 * Deterministic article checks plus audit-driven automatic rewriting before draft or publication.
-* Resumable OpenAI background generation for long-running site strategy jobs.
+* NVIDIA strategy generation with retryable job execution.
 * Verified reference output, approved internal-link candidates, cluster-aware CV routing, and completed-topic tracking.
 * First-party page-view, internal CTA click, and affiliate CTA click measurement for conversion-oriented PDCA.
 * Pipeline progress for strategy, research, writing, audit, and publishing.
@@ -33,13 +33,12 @@ This initial implementation includes:
 * Automated 28-day period comparison, refresh selection, AI rewrite, audit, revision backup, and review or auto-apply workflow.
 * WP-Cron based job execution.
 * Research, draft, audit, and publish stages.
-* Strict JSON schema contracts for OpenAI Responses API requests.
+* Strict JSON schema contracts for NVIDIA Chat Completions requests.
 * Draft-first safety behavior for YMYL or failed audit articles.
 * Core meta description output only when a known SEO plugin is not active.
 * Styled headings, styled tables, colored lists, and CTA/reference styling for AI-generated posts.
 * Automatic reader-facing decision-flow diagrams without image-generation cost.
 * Free Openverse image retrieval with WordPress media-library storage, responsive markup, source and license attribution, retries, and visible pipeline status.
-* Optional one-image-per-article OpenAI image generation when a paid generated image is preferred.
 * Rolling article-plan refill when the active topic backlog gets low.
 * Search Console, GA4, and CTA performance evidence fed back into future content strategy generation.
 * Yoast, Rank Math, and AIOSEO meta-description compatibility plus core BlogPosting structured data when no SEO plugin owns the output.
@@ -51,7 +50,7 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 1. Upload the plugin folder to wp-content/plugins.
 2. Activate "Daily SEO AI Publisher".
 3. Open "Daily SEO AI" in the WordPress admin menu.
-4. Add an OpenAI API key or leave mock mode enabled for local testing.
+4. Add an NVIDIA API key or leave mock mode enabled for local testing.
 5. Add a topic and run a job.
 
 == Search Console PDCA Setup ==
@@ -65,6 +64,9 @@ This plugin does not guarantee search rankings. It uses Search Console evidence 
 The plugin requests read-only Search Console and GA4 scopes. Automatic application is disabled by default; review drafts can be applied or discarded from the pipeline table.
 
 == Changelog ==
+
+= 0.7.0 =
+Switched all live AI work to NVIDIA only. Removed OpenAI credentials, model selectors, fallback routing, background response handling, and paid OpenAI image generation. Existing OpenAI keys are deleted during migration and OpenAI image settings move to free Openverse. Added NVIDIA source discovery followed by WordPress safe-HTTP verification and page retrieval, so research and strategy generation receive only reachable source content. Added NVIDIA-only provider and grounding regression tests.
 
 = 0.6.26 =
 Expanded NVIDIA failover beyond quota errors to cover OpenAI output limits, networking, temporary failures, missing background responses, empty output, and malformed structured output. The pipeline now reports NVIDIA usage and retries temporary NVIDIA failures. Public GitHub Release assets now always use unauthenticated browser download URLs, preventing legacy GitHub tokens from corrupting ZIP checksum verification.

@@ -49,7 +49,7 @@ final class Pipeline
             return;
         }
         $payload = $this->payload($job);
-        $result = $this->client->respond('refresh_plan_v1', Contracts::schema('refresh_plan_v1'), PromptBuilder::refreshPlan($job, $post, $payload), false, (string) Settings::get()['model_refresh']);
+        $result = $this->client->respond('refresh_plan_v1', Contracts::schema('refresh_plan_v1'), PromptBuilder::refreshPlan($job, $post, $payload));
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -76,7 +76,7 @@ final class Pipeline
         }
         $payload = $this->payload($job);
         $webSearch = !empty($payload['refresh_plan']['requires_web_research']);
-        $result = $this->client->respond('refresh_article_v1', Contracts::schema('refresh_article_v1'), PromptBuilder::refreshArticle($job, $post, $payload), $webSearch, (string) Settings::get()['model_refresh']);
+        $result = $this->client->respond('refresh_article_v1', Contracts::schema('refresh_article_v1'), PromptBuilder::refreshArticle($job, $post, $payload), $webSearch);
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -109,7 +109,7 @@ final class Pipeline
             return;
         }
         $payload = $this->payload($job);
-        $result = $this->client->respond('audit_v1', Contracts::schema('audit_v1'), PromptBuilder::refreshAudit($job, $post, $payload), false, (string) Settings::get()['model_audit']);
+        $result = $this->client->respond('audit_v1', Contracts::schema('audit_v1'), PromptBuilder::refreshAudit($job, $post, $payload));
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -160,7 +160,6 @@ final class Pipeline
         }
 
         $phase = $plan !== [] && $attempts >= 1 ? 'repair' : 'initial';
-        $responseId = (string) (($state['phase'] ?? '') === $phase ? ($state['response_id'] ?? '') : '');
         $prompt = $phase === 'repair'
             ? PromptBuilder::strategyRepair($job, $plan, $diagnostics, $siteContext)
             : PromptBuilder::strategy($job, $siteContext);
@@ -168,19 +167,9 @@ final class Pipeline
             'strategy_v1',
             Contracts::schema('strategy_v1'),
             $prompt,
-            true,
-            (string) $settings['model_research'],
-            true,
-            $responseId
+            true
         );
         if (is_wp_error($result)) {
-            if (in_array($result->get_error_code(), ['dsap_openai_response_missing', 'dsap_openai_output_limit'], true)) {
-                $state['response_id'] = '';
-                $state['status'] = $result->get_error_code() === 'dsap_openai_output_limit' ? 'output_limit' : 'expired';
-                $state['updated_at'] = current_time('mysql');
-                $payload['strategy_generation'] = $state;
-                $repo->savePayload((int) $job['id'], $payload);
-            }
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
         }
@@ -304,7 +293,7 @@ final class Pipeline
         }
 
         $prompt = PromptBuilder::research($topic, $job);
-        $result = $this->client->respond('research_v1', Contracts::schema('research_v1'), $prompt, true, (string) Settings::get()['model_research']);
+        $result = $this->client->respond('research_v1', Contracts::schema('research_v1'), $prompt, true);
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -357,7 +346,7 @@ final class Pipeline
         $repo = new JobRepository();
         $payload = $this->payload($job);
         $prompt = PromptBuilder::article($payload, $job);
-        $result = $this->client->respond('article_v1', Contracts::schema('article_v1'), $prompt, false, (string) Settings::get()['model_research']);
+        $result = $this->client->respond('article_v1', Contracts::schema('article_v1'), $prompt);
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -374,8 +363,7 @@ final class Pipeline
                 'article_v1',
                 Contracts::schema('article_v1'),
                 PromptBuilder::repairArticle($payload, $job, $payload['quality_diagnostics']),
-                false,
-                (string) Settings::get()['model_research']
+                false
             );
             if (is_wp_error($repair)) {
                 $repo->fail((int) $job['id'], $repair->get_error_message(), $this->isPermanent($repair));
@@ -404,7 +392,7 @@ final class Pipeline
         $repo = new JobRepository();
         $payload = $this->payload($job);
         $prompt = PromptBuilder::audit($payload, $job);
-        $result = $this->client->respond('audit_v1', Contracts::schema('audit_v1'), $prompt, false, (string) Settings::get()['model_audit']);
+        $result = $this->client->respond('audit_v1', Contracts::schema('audit_v1'), $prompt);
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -433,7 +421,7 @@ final class Pipeline
     {
         $repo = new JobRepository();
         $payload = $this->payload($job);
-        $result = $this->client->respond('article_v1', Contracts::schema('article_v1'), PromptBuilder::revision($payload, $job), false, (string) Settings::get()['model_research']);
+        $result = $this->client->respond('article_v1', Contracts::schema('article_v1'), PromptBuilder::revision($payload, $job));
         if (is_wp_error($result)) {
             $repo->fail((int) $job['id'], $result->get_error_message(), $this->isPermanent($result));
             return;
@@ -511,7 +499,7 @@ final class Pipeline
 
     private function isPermanent(\WP_Error $error): bool
     {
-        return !in_array($error->get_error_code(), ['dsap_openai_network', 'dsap_openai_retryable', 'dsap_openai_response_missing', 'dsap_openai_output_limit', 'dsap_nvidia_network', 'dsap_nvidia_retryable', 'dsap_ai_fallback_retryable'], true);
+        return !in_array($error->get_error_code(), ['dsap_nvidia_network', 'dsap_nvidia_retryable', 'dsap_nvidia_sources_retryable'], true);
     }
 
     private static function topicInstructions(array $article): string

@@ -10,7 +10,7 @@ final class ArticleImageGenerator
     {
         $settings = Settings::get();
         $provider = (string) ($settings['article_image_provider'] ?? 'openverse');
-        if ($postId <= 0 || $provider === 'none' || ($provider === 'openai' && Settings::apiKey() === '')) {
+        if ($postId <= 0 || $provider === 'none') {
             return;
         }
         $existingId = (int) get_post_meta($postId, '_dsap_generated_image_id', true);
@@ -32,17 +32,6 @@ final class ArticleImageGenerator
         if (!$post instanceof \WP_Post || !in_array($post->post_status, ['publish', 'draft', 'pending'], true) || $provider === 'none') {
             return;
         }
-        if ($provider === 'openai') {
-            if (Settings::apiKey() === '') {
-                return;
-            }
-            if ($post->post_status !== 'publish') {
-                $decision = json_decode((string) get_post_meta($postId, '_dsap_publish_decision', true), true);
-                if (!is_array($decision) || !empty($decision['publish_blockers'])) {
-                    return;
-                }
-            }
-        }
         $existingId = (int) get_post_meta($postId, '_dsap_generated_image_id', true);
         if ($existingId > 0) {
             if (wp_attachment_is_image($existingId)) {
@@ -57,7 +46,7 @@ final class ArticleImageGenerator
         }
         update_post_meta($postId, '_dsap_image_attempts', $attempts + 1);
 
-        $result = $provider === 'openai' ? $this->requestOpenAi($postId, $post) : $this->requestOpenverse($postId, $post);
+        $result = $this->requestOpenverse($postId, $post);
         if (is_wp_error($result)) {
             update_post_meta($postId, '_dsap_image_error', $result->get_error_message());
             $errorData = $result->get_error_data();
@@ -81,65 +70,6 @@ final class ArticleImageGenerator
         update_post_meta($postId, '_dsap_generated_image_id', $attachmentId);
         delete_post_meta($postId, '_dsap_image_error');
         $this->insertIntoContent($post, $attachmentId);
-    }
-
-    private function requestOpenAi(int $postId, \WP_Post $post): array|\WP_Error
-    {
-        $keyword = sanitize_text_field((string) get_post_meta($postId, '_dsap_focus_keyword', true));
-        $summary = sanitize_textarea_field((string) get_post_meta($postId, '_dsap_answer_summary', true));
-        $prompt = 'Create one high-quality editorial illustration for a Japanese web article. '
-            . 'The image must directly explain the subject, use a clean realistic editorial style, balanced natural colors, and a clear focal point. '
-            . 'Do not include letters, captions, logos, watermarks, UI screenshots, charts with labels, or misleading product details. '
-            . 'Landscape composition, suitable for an article at 1536x1024. '
-            . 'Article title: ' . sanitize_text_field($post->post_title)
-            . '. Focus topic: ' . $keyword
-            . '. Article summary: ' . $summary;
-
-        $response = wp_remote_post('https://api.openai.com/v1/images/generations', [
-            'timeout' => 150,
-            'headers' => [
-                'Authorization' => 'Bearer ' . Settings::apiKey(),
-                'Content-Type' => 'application/json',
-            ],
-            'body' => wp_json_encode([
-                'model' => 'gpt-image-2',
-                'prompt' => $prompt,
-                'n' => 1,
-                'size' => '1536x1024',
-                'quality' => 'low',
-                'output_format' => 'webp',
-                'output_compression' => 82,
-            ]),
-        ]);
-        if (is_wp_error($response)) {
-            return new \WP_Error('dsap_image_network', $response->get_error_message());
-        }
-        $code = (int) wp_remote_retrieve_response_code($response);
-        $json = json_decode((string) wp_remote_retrieve_body($response), true);
-        if ($code < 200 || $code >= 300) {
-            $message = is_array($json) && !empty($json['error']['message']) ? (string) $json['error']['message'] : 'OpenAI画像APIの生成に失敗しました。';
-            return new \WP_Error('dsap_image_api', $message, ['status' => $code]);
-        }
-        $encoded = is_array($json) ? (string) ($json['data'][0]['b64_json'] ?? '') : '';
-        $bytes = base64_decode($encoded, true);
-        if (!is_string($bytes) || $bytes === '') {
-            return new \WP_Error('dsap_image_empty', 'OpenAI画像APIから画像データが返りませんでした。');
-        }
-        if (strlen($bytes) > 15 * MB_IN_BYTES) {
-            return new \WP_Error('dsap_image_too_large', '生成画像が15MBを超えたため保存を中止しました。');
-        }
-        if (function_exists('getimagesizefromstring')) {
-            $imageInfo = getimagesizefromstring($bytes);
-            if (!is_array($imageInfo) || (string) ($imageInfo['mime'] ?? '') !== 'image/webp') {
-                return new \WP_Error('dsap_image_invalid', 'OpenAI画像APIのデータ形式を確認できませんでした。');
-            }
-        }
-        return [
-            'bytes' => $bytes,
-            'mime' => 'image/webp',
-            'alt' => sanitize_text_field((string) get_post_meta($postId, '_dsap_image_alt', true)),
-            'provider' => 'openai',
-        ];
     }
 
     private function requestOpenverse(int $postId, \WP_Post $post): array|\WP_Error

@@ -124,8 +124,6 @@ final class Publisher
         $imageProvider = (string) (Settings::get()['article_image_provider'] ?? 'openverse');
         if ($imageProvider === 'openverse') {
             (new ArticleImageGenerator())->generate((int) $postId);
-        } elseif ($imageProvider === 'openai' && empty($decision['publish_blockers'])) {
-            ArticleImageGenerator::schedule((int) $postId);
         }
         return (int) $postId;
     }

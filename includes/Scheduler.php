@@ -261,23 +261,8 @@ final class Scheduler
     private static function client(): AiClientInterface
     {
         $settings = Settings::get();
-        $openAiKey = Settings::apiKey();
         $nvidiaKey = Settings::nvidiaApiKey();
-        if (!empty($settings['mock_mode']) || ($openAiKey === '' && $nvidiaKey === '')) {
-            return new MockAiClient();
-        }
-
-        $nvidia = $nvidiaKey !== '' ? new NvidiaAiClient($nvidiaKey, (string) ($settings['nvidia_model'] ?? '')) : null;
-        if ($openAiKey === '') {
-            return $nvidia instanceof AiClientInterface ? $nvidia : new MockAiClient();
-        }
-
-        $openAi = new OpenAiClient($openAiKey);
-        if (!empty($settings['nvidia_fallback_enabled']) && $nvidia instanceof AiClientInterface) {
-            return new FallbackAiClient($openAi, $nvidia);
-        }
-
-        return $openAi;
+        return AiClientFactory::create($settings, $nvidiaKey);
     }
 
     private static function nextDailyTimestamp(string $time): int

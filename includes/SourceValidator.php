@@ -24,14 +24,10 @@ final class SourceValidator
 
         $verified = array_map([self::class, 'normalize'], $apiSources);
         if ($verified !== []) {
-            $matches = 0;
             foreach ($sourceUrls as $url) {
-                if (in_array($url, $verified, true)) {
-                    $matches++;
+                if (!in_array($url, $verified, true)) {
+                    return 'Research includes a source URL that was not verified by the web grounding step.';
                 }
-            }
-            if ($matches === 0) {
-                return 'Research source URLs did not overlap with OpenAI web search citations.';
             }
         }
 
@@ -76,7 +72,7 @@ final class SourceValidator
                 return 'Refresh includes an invalid source URL.';
             }
             if ($required && $verified !== [] && !in_array(self::normalize($url), $verified, true)) {
-                return 'Refresh source URL was not present in OpenAI web search citations.';
+                return 'Refresh source URL was not verified by the web grounding step.';
             }
         }
         foreach (($article['source_indexes'] ?? []) as $index) {

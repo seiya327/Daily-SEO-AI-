@@ -2,7 +2,7 @@
 
 WordPress plugin for AI-assisted SEO strategy, article generation, affiliate funnels, Search Console measurement, and controlled content refreshes.
 
-Version 0.6.26 expands NVIDIA failover to OpenAI output limits and temporary failures, reports provider switching in the pipeline, and fixes public GitHub asset downloads when a legacy token remains saved. Version 0.6.25 prevents publish-mode quality failures from being completed as WordPress drafts and makes one bounded replacement attempt with another planned topic.
+Version 0.7.0 uses NVIDIA as the sole AI provider, removes OpenAI credentials and image generation, migrates legacy settings to NVIDIA plus Openverse, and grounds research with server-verified source pages before generation.
 
 ## Releases
 

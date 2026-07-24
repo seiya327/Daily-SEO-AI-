@@ -22,6 +22,7 @@ final class Plugin
     public function boot(): void
     {
         Activator::maybeUpgrade();
+        Settings::ensureDefaults();
         Settings::boot();
         AdminPage::boot();
         Scheduler::boot();

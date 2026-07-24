@@ -61,9 +61,8 @@ final class AdminPage
         $jobs = (new JobRepository())->latest(30);
         $hasActiveJobs = array_filter($jobs, static fn (array $job): bool => in_array((string) ($job['status'] ?? ''), ['queued', 'running', 'failed_retryable'], true)) !== [];
         $strategy = get_option('dsap_strategy_plan', []);
-        $hasOpenAiKey = Settings::apiKey() !== '';
         $hasNvidiaKey = Settings::nvidiaApiKey() !== '';
-        $hasKey = $hasOpenAiKey || $hasNvidiaKey;
+        $hasKey = $hasNvidiaKey;
         $hasGoogleSecret = (string) $settings['gsc_client_secret'] !== '';
         $gscConnected = GoogleOAuth::connected();
         $lastSync = get_option('dsap_gsc_last_sync', []);
@@ -106,7 +105,7 @@ final class AdminPage
                 <div class="dsap-panel">
                     <h2>初期設定の順番</h2>
                     <ol class="dsap-cycle">
-                        <li>OpenAI APIキーを保存する</li>
+                        <li>NVIDIA APIキーを保存する</li>
                         <li>自動初期設定でサイト戦略と記事計画を作る</li>
                         <li>Google Search Consoleを接続して改善データを取れるようにする</li>
                         <li>最後にテスト実行で1記事を作成する</li>
@@ -115,7 +114,7 @@ final class AdminPage
                 </div>
 
                 <div class="dsap-panel">
-                    <h2>1. OpenAI APIキー</h2>
+                    <h2>1. NVIDIA APIキー</h2>
                     <?php if ($hasKey) : ?>
                         <p><strong>設定済みです。</strong> 変更したい場合だけ新しいキーを保存してください。</p>
                     <?php else : ?>
@@ -124,10 +123,8 @@ final class AdminPage
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <?php wp_nonce_field('dsap_save_api_key'); ?>
                         <input type="hidden" name="action" value="dsap_save_api_key">
-                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'OpenAI APIキー'); ?>">
-                        <p class="description">OpenAIの利用枠が尽きた時の予備として、NVIDIA APIキーも保存できます。</p>
-                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? 'NVIDIA設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>">
-                        <label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAIの利用枠・出力上限・通信障害時にNVIDIAへ自動切替</label>
+                        <input type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー'); ?>">
+                        <p class="description">リサーチ、戦略、執筆、監査、改善はすべて選択したNVIDIAモデルで実行します。保存済みキーは画面に再表示しません。</p>
                         <p><?php self::nvidiaModelSelect((string) $settings['nvidia_model'], 'setup'); ?></p>
                         <?php submit_button($hasKey ? 'APIキーを更新' : 'APIキーを保存', 'primary', 'submit', false); ?>
                     </form>
@@ -141,7 +138,7 @@ final class AdminPage
                         <input type="hidden" name="action" value="dsap_save_quality">
                         <?php self::qualitySelect((string) $settings['article_quality']); ?>
                         <p><label>記事の挿絵 <?php self::imageProviderSelect((string) $settings['article_image_provider']); ?></label></p>
-                        <p class="description">無料素材はOpenverseから商用利用可能な画像を取得し、作者・ライセンスを自動表示します。OpenAI画像だけ別料金です。</p>
+                        <p class="description">Openverseから商用利用可能な無料素材を取得し、作者・ライセンスを自動表示します。</p>
                         <?php submit_button('記事品質を保存', 'primary', 'submit', false); ?>
                     </form>
                 </div>
@@ -149,7 +146,7 @@ final class AdminPage
                 <div class="dsap-panel">
                     <h2>2. 自動設定と記事計画</h2>
                     <p class="description">設定を直したあとに押すと、古い記事計画をリセットして新しい戦略を作り直します。</p>
-                    <p class="description">長時間かかる戦略生成はOpenAIのバックグラウンド処理で実行し、完了まで同じレスポンスIDを確認します。この方式はZero Data Retentionには対応しません。</p>
+                    <p class="description">戦略生成もNVIDIAで実行します。根拠が必要な処理では、NVIDIAが提示した候補URLをWordPress側で実在確認し、取得できたページだけを生成へ渡します。</p>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="dsap-inline-setting">
                         <?php wp_nonce_field('dsap_save_keyword_strategy'); ?>
                         <input type="hidden" name="action" value="dsap_save_keyword_strategy">
@@ -188,7 +185,7 @@ final class AdminPage
                         <span class="<?php echo trim((string) $settings['conversion_goal']) !== '' ? 'is-done' : 'is-optional'; ?>">CV目標: <?php echo esc_html(trim((string) $settings['conversion_goal']) !== '' ? '入力済み' : 'AIが補完'); ?></span>
                     </div>
                     <?php if (!$hasKey) : ?>
-                        <p class="description">先にOpenAI APIキーまたはNVIDIA APIキーを保存してください。保存後にこのタブへ戻って自動初期設定を実行します。</p>
+                        <p class="description">先にNVIDIA APIキーを保存してください。保存後にこのタブへ戻って自動初期設定を実行します。</p>
                     <?php endif; ?>
                 </div>
 
@@ -326,15 +323,10 @@ final class AdminPage
                         <div class="dsap-advanced">
                             <h3>詳細設定</h3>
                             <table class="form-table" role="presentation">
-                                <tr><th><label for="dsap-key">OpenAI APIキー</label></th><td><input id="dsap-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[openai_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasOpenAiKey ? '設定済み（空欄なら維持）' : 'APIキーを入力'); ?>"><p class="description">保存済みキーは画面に再表示しません。</p></td></tr>
-                                <tr><th><label for="dsap-nvidia-key">NVIDIA APIキー</label></th><td><input id="dsap-nvidia-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー（任意）'); ?>"> <?php if ($hasNvidiaKey) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_nvidia_api_key]" value="1"> 保存済みNVIDIAキーを削除</label><?php endif; ?><p class="description">OpenAIの利用枠超過、出力上限、通信・一時障害時にNVIDIAへ切り替えます。</p></td></tr>
-                                <tr><th>NVIDIA fallback</th><td><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_fallback_enabled]" value="1" <?php checked($settings['nvidia_fallback_enabled']); ?>> OpenAI障害時に有効</label></td></tr>
+                                <tr><th><label for="dsap-nvidia-key">NVIDIA APIキー</label></th><td><input id="dsap-nvidia-key" type="password" name="<?php echo esc_attr(Settings::OPTION); ?>[nvidia_api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr($hasNvidiaKey ? '設定済み（空欄なら維持）' : 'NVIDIA APIキー'); ?>"> <?php if ($hasNvidiaKey) : ?><label><input type="checkbox" name="<?php echo esc_attr(Settings::OPTION); ?>[delete_nvidia_api_key]" value="1"> 保存済みNVIDIAキーを削除</label><?php endif; ?><p class="description">すべてのAI処理に使用します。保存済みキーは画面に再表示しません。</p></td></tr>
                                 <tr><th>NVIDIAモデル</th><td><?php self::nvidiaModelSelect((string) $settings['nvidia_model']); ?><p class="description">通常はプルダウンから選んでください。候補にないモデルだけカスタムIDを入力します。</p></td></tr>
                                 <tr><th>記事品質</th><td><?php self::qualitySelect((string) $settings['article_quality'], Settings::OPTION . '[article_quality]'); ?></td></tr>
-                                <tr><th>記事の挿絵</th><td><?php self::imageProviderSelect((string) $settings['article_image_provider'], Settings::OPTION . '[article_image_provider]'); ?><p class="description">無料素材は出典を自動表示します。OpenAI画像はgpt-image-2の利用料が発生します。</p></td></tr>
-                                <tr><th>リサーチ・執筆モデル</th><td><?php self::modelSelect('model_research', (string) $settings['model_research']); ?></td></tr>
-                                <tr><th>監査モデル</th><td><?php self::modelSelect('model_audit', (string) $settings['model_audit']); ?></td></tr>
-                                <tr><th>改善モデル</th><td><?php self::modelSelect('model_refresh', (string) $settings['model_refresh']); ?></td></tr>
+                                <tr><th>記事の挿絵</th><td><?php self::imageProviderSelect((string) $settings['article_image_provider'], Settings::OPTION . '[article_image_provider]'); ?><p class="description">Openverseの商用利用可能な無料素材を使い、出典を自動表示します。</p></td></tr>
                                 <tr><th><label for="dsap-anchor-default">CTA文言</label></th><td><input id="dsap-anchor-default" name="<?php echo esc_attr(Settings::OPTION); ?>[affiliate_anchor]" value="<?php echo esc_attr((string) $settings['affiliate_anchor']); ?>" class="regular-text"></td></tr>
                                 <tr><th><label for="dsap-disclosure">広告表記</label></th><td><input id="dsap-disclosure" name="<?php echo esc_attr(Settings::OPTION); ?>[affiliate_disclosure]" value="<?php echo esc_attr((string) $settings['affiliate_disclosure']); ?>" class="large-text"></td></tr>
                                 <tr><th><label for="dsap-ratio">集客記事の割合</label></th><td><input id="dsap-ratio" type="number" min="0" max="100" step="10" name="<?php echo esc_attr(Settings::OPTION); ?>[attraction_ratio]" value="<?php echo esc_attr((string) $settings['attraction_ratio']); ?>"> %</td></tr>
@@ -361,7 +353,7 @@ final class AdminPage
                         <?php submit_button('設定を保存'); ?>
                     </form>
                     <div class="dsap-actions dsap-settings-actions">
-                        <?php if ($hasOpenAiKey) : ?><?php self::actionForm('dsap_delete_api_key', 'OpenAI APIキーを削除', 'delete'); ?><?php endif; ?>
+                        <?php if ($hasNvidiaKey) : ?><?php self::actionForm('dsap_delete_api_key', 'NVIDIA APIキーを削除', 'delete'); ?><?php endif; ?>
                         <?php self::actionForm('dsap_check_github_updates', 'GitHub更新を確認', 'secondary'); ?>
                         <?php self::actionForm('dsap_install_github_update', 'GitHubから今すぐ更新', 'primary'); ?>
                     </div>
@@ -417,20 +409,13 @@ final class AdminPage
     {
         self::guard('dsap_save_api_key');
         $input = is_array($_POST[Settings::OPTION] ?? null) ? wp_unslash($_POST[Settings::OPTION]) : [];
-        $apiKey = trim((string) ($input['openai_api_key'] ?? ''));
         $nvidiaKey = trim((string) ($input['nvidia_api_key'] ?? ''));
-        if ($apiKey === '' && $nvidiaKey === '') {
-            self::redirect(Settings::apiKey() !== '' || Settings::nvidiaApiKey() !== '' ? 'APIキーは設定済みです。変更する場合だけ新しいキーを入力してください。' : 'OpenAI APIキーまたはNVIDIA APIキーを入力してください。');
+        if ($nvidiaKey === '') {
+            self::redirect(Settings::nvidiaApiKey() !== '' ? 'NVIDIA APIキーは設定済みです。変更する場合だけ新しいキーを入力してください。' : 'NVIDIA APIキーを入力してください。');
         }
 
         $settings = Settings::get();
-        if ($apiKey !== '') {
-            $settings['openai_api_key'] = $apiKey;
-        }
-        if ($nvidiaKey !== '') {
-            $settings['nvidia_api_key'] = $nvidiaKey;
-        }
-        $settings['nvidia_fallback_enabled'] = !empty($input['nvidia_fallback_enabled']);
+        $settings['nvidia_api_key'] = $nvidiaKey;
         $preset = sanitize_text_field((string) ($input['nvidia_model_preset'] ?? ''));
         $custom = sanitize_text_field((string) ($input['nvidia_model_custom'] ?? ''));
         if ($custom !== '') {
@@ -439,7 +424,7 @@ final class AdminPage
             $settings['nvidia_model'] = $preset;
         }
         update_option(Settings::OPTION, $settings, false);
-        self::redirect('AI APIキーを保存しました。次に自動初期設定を実行してください。');
+        self::redirect('NVIDIA APIキーを保存しました。次に自動初期設定を実行してください。');
     }
 
     public static function saveQuality(): void
@@ -451,9 +436,7 @@ final class AdminPage
         $settings['article_quality'] = array_key_exists($quality, Settings::qualityProfiles()) ? $quality : 'high';
         $imageProvider = sanitize_key((string) ($_POST['article_image_provider'] ?? 'openverse'));
         $settings['article_image_provider'] = array_key_exists($imageProvider, Settings::imageProviders()) ? $imageProvider : 'openverse';
-        $settings['ai_images_enabled'] = $settings['article_image_provider'] === 'openai';
-        $settings['model_research'] = (string) $profile['model_research'];
-        $settings['model_audit'] = (string) $profile['model_audit'];
+        $settings['ai_images_enabled'] = false;
         if (trim((string) $settings['global_instructions']) === '') {
             $settings['global_instructions'] = (string) $profile['instruction'];
         }
@@ -475,8 +458,8 @@ final class AdminPage
     public static function autoSetup(): void
     {
         self::guard('dsap_auto_setup');
-        if (Settings::apiKey() === '' && Settings::nvidiaApiKey() === '') {
-            self::redirect('先にOpenAI APIキーまたはNVIDIA APIキーを保存してください。その後に自動初期設定を実行できます。');
+        if (Settings::nvidiaApiKey() === '') {
+            self::redirect('先にNVIDIA APIキーを保存してください。その後に自動初期設定を実行できます。');
         }
 
         $settings = Settings::get();
@@ -514,11 +497,7 @@ final class AdminPage
         if (trim((string) $settings['affiliate_disclosure']) === '') {
             $settings['affiliate_disclosure'] = '本記事には広告・アフィリエイトリンクが含まれます。';
         }
-        $qualityProfile = Settings::qualityProfile((string) ($settings['article_quality'] ?? 'high'));
         $settings['article_quality'] = (string) ($settings['article_quality'] ?: 'high');
-        $settings['model_research'] = (string) ($qualityProfile['model_research'] ?? ($settings['model_research'] ?: 'gpt-5.6-terra'));
-        $settings['model_audit'] = (string) ($qualityProfile['model_audit'] ?? ($settings['model_audit'] ?: 'gpt-5.6-luna'));
-        $settings['model_refresh'] = (string) ($settings['model_refresh'] ?: 'gpt-5.6-terra');
         $settings['github_updates_enabled'] = true;
         $settings['refresh_min_impressions'] = max(100, (int) $settings['refresh_min_impressions']);
         $settings['refresh_cooldown_days'] = max(28, (int) $settings['refresh_cooldown_days']);
@@ -648,9 +627,9 @@ final class AdminPage
     {
         self::guard('dsap_delete_api_key');
         $settings = Settings::get();
-        $settings['openai_api_key'] = '';
+        $settings['nvidia_api_key'] = '';
         update_option(Settings::OPTION, $settings, false);
-        self::redirect('APIキーを削除しました。');
+        self::redirect('NVIDIA APIキーを削除しました。');
     }
 
     public static function gscConnect(): void
@@ -862,15 +841,6 @@ final class AdminPage
         exit;
     }
 
-    private static function modelSelect(string $key, string $current): void
-    {
-        echo '<select name="' . esc_attr(Settings::OPTION) . '[' . esc_attr($key) . ']">';
-        foreach (Settings::models() as $value => $label) {
-            echo '<option value="' . esc_attr($value) . '" ' . selected($current, $value, false) . '>' . esc_html($label) . '</option>';
-        }
-        echo '</select>';
-    }
-
     private static function nvidiaModelSelect(string $current, string $suffix = 'settings'): void
     {
         $models = Settings::preferredNvidiaModels();
@@ -1031,7 +1001,7 @@ final class AdminPage
             return [
                 'progress' => 0,
                 'label' => 'APIキー待ち',
-                'current' => '設定タブでOpenAI APIキーを保存してください。',
+                'current' => '設定タブでNVIDIA APIキーを保存してください。',
                 'steps' => $steps,
             ];
         }
@@ -1088,7 +1058,7 @@ final class AdminPage
         }
 
         $steps[3]['status'] = 'current';
-        $backgroundLabels = ['queued' => 'OpenAIの処理待ち', 'in_progress' => 'OpenAIが戦略を生成中'];
+        $backgroundLabels = ['queued' => 'NVIDIAの処理待ち', 'in_progress' => 'NVIDIAが戦略を生成中'];
         $backgroundActive = isset($backgroundLabels[$backgroundStatus]);
         $current = $backgroundActive
             ? $backgroundLabels[$backgroundStatus] . 'です。画面は進捗確認のため約15秒ごとに自動更新されます。'
@@ -1270,7 +1240,7 @@ final class AdminPage
             $generation = is_array($payload['strategy_generation'] ?? null) ? $payload['strategy_generation'] : [];
             $status = (string) ($generation['status'] ?? '');
             if (in_array($status, ['queued', 'in_progress'], true)) {
-                $label = $status === 'in_progress' ? 'OpenAI生成中' : 'OpenAI処理待ち';
+                $label = $status === 'in_progress' ? 'NVIDIA生成中' : 'NVIDIA処理待ち';
                 return $label . ' / 確認 ' . (string) ($generation['poll_count'] ?? 0) . '回';
             }
             $diagnostics = is_array($payload['strategy_diagnostics'] ?? null) ? $payload['strategy_diagnostics'] : [];
@@ -1314,7 +1284,7 @@ final class AdminPage
         }
         foreach (array_reverse(is_array($payload['usage'] ?? null) ? $payload['usage'] : []) as $usage) {
             if (is_array($usage) && ($usage['provider'] ?? '') === 'nvidia') {
-                $parts[] = 'AI: NVIDIAへ自動切替済み';
+                $parts[] = 'AI: NVIDIA';
                 break;
             }
         }

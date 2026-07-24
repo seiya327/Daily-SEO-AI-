@@ -32,7 +32,8 @@ jobs:
           set -euo pipefail
           php tests/generate-article-smoke.php > /tmp/dsap-generated-article.json
           test -s /tmp/dsap-generated-article.json
-          php tests/fallback-ai-client.php
+          php tests/nvidia-only.php
+          php tests/nvidia-grounding.php
           php tests/github-updater-smoke.php
 
       - name: Build update package

@@ -11,13 +11,8 @@ final class Settings
     public static function defaults(): array
     {
         return [
-            'openai_api_key' => '',
             'nvidia_api_key' => '',
-            'nvidia_fallback_enabled' => true,
             'nvidia_model' => 'nvidia/llama-3.3-nemotron-super-49b-v1',
-            'model_research' => 'gpt-5.6-terra',
-            'model_audit' => 'gpt-5.6-luna',
-            'model_refresh' => 'gpt-5.6-terra',
             'article_quality' => 'high',
             'article_image_provider' => 'openverse',
             'ai_images_enabled' => false,
@@ -57,17 +52,6 @@ final class Settings
         ];
     }
 
-    public static function models(): array
-    {
-        return [
-            'gpt-5.6-luna' => 'GPT-5.6 Luna',
-            'gpt-5.6-terra' => 'GPT-5.6 Terra',
-            'gpt-5-mini' => 'GPT-5 mini',
-            'gpt-5.4-mini' => 'GPT-5.4 mini',
-            'gpt-5-nano' => 'GPT-5 nano',
-        ];
-    }
-
     public static function nvidiaModels(): array
     {
         return [
@@ -96,7 +80,6 @@ final class Settings
     {
         return [
             'openverse' => '無料素材を自動取得（推奨）',
-            'openai' => 'OpenAIで生成（有料）',
             'none' => '実画像を使わない',
         ];
     }
@@ -110,8 +93,6 @@ final class Settings
                 'max_words' => 3000,
                 'audit_score' => 80,
                 'max_revisions' => 1,
-                'model_research' => 'gpt-5.6-luna',
-                'model_audit' => 'gpt-5.6-luna',
                 'instruction' => '読みやすさとSEO基本要件を満たす。一般論だけで終わらせず、見出しごとに要点、理由、具体例を入れる。',
             ],
             'high' => [
@@ -120,8 +101,6 @@ final class Settings
                 'max_words' => 4500,
                 'audit_score' => 85,
                 'max_revisions' => 2,
-                'model_research' => 'gpt-5.6-terra',
-                'model_audit' => 'gpt-5.6-luna',
                 'instruction' => '専門家が監修したような実用記事にする。手順、判断基準、比較、失敗例、注意点、読者が次に取る行動を必ず入れる。薄い要約、同じ意味の繰り返し、根拠のない断定は禁止。',
             ],
             'premium' => [
@@ -130,8 +109,6 @@ final class Settings
                 'max_words' => 6500,
                 'audit_score' => 90,
                 'max_revisions' => 2,
-                'model_research' => 'gpt-5.6-terra',
-                'model_audit' => 'gpt-5.6-terra',
                 'instruction' => '検索上位を狙う柱記事として作る。読者の前提知識、比較表に相当する観点、具体的な選び方、ケース別の結論、よくある誤解、内部リンク前提、CVへの自然な導線まで設計する。独自性のない文章、抽象論、水増しは禁止。',
             ],
         ];
@@ -173,25 +150,27 @@ final class Settings
             add_option(self::OPTION, self::defaults(), '', false);
             return;
         }
-        $merged = self::normalizeModels(array_merge(self::defaults(), $current));
+        $merged = self::normalize(array_merge(self::defaults(), $current));
         if (!array_key_exists('article_image_provider', $current)) {
-            $merged['article_image_provider'] = !empty($current['ai_images_enabled']) ? 'openai' : 'openverse';
+            $merged['article_image_provider'] = 'openverse';
         }
         if (empty($merged['publish_default_migrated']) && (string) ($merged['post_status'] ?? '') === 'draft') {
             $merged['post_status'] = 'publish';
         }
         $merged['publish_default_migrated'] = true;
-        update_option(self::OPTION, $merged, false);
+        if ($merged !== $current) {
+            update_option(self::OPTION, $merged, false);
+        }
     }
 
     public static function get(): array
     {
         $settings = get_option(self::OPTION, []);
-        $merged = self::normalizeModels(array_merge(self::defaults(), is_array($settings) ? $settings : []));
+        $merged = self::normalize(array_merge(self::defaults(), is_array($settings) ? $settings : []));
         if (is_array($settings) && !array_key_exists('article_image_provider', $settings)) {
-            $merged['article_image_provider'] = !empty($settings['ai_images_enabled']) ? 'openai' : 'openverse';
+            $merged['article_image_provider'] = 'openverse';
         }
-        $merged['ai_images_enabled'] = ($merged['article_image_provider'] ?? '') === 'openai';
+        $merged['ai_images_enabled'] = false;
         if (empty($merged['publish_default_migrated']) && (string) ($merged['post_status'] ?? '') === 'draft') {
             $merged['post_status'] = 'publish';
             $merged['publish_default_migrated'] = true;
@@ -200,38 +179,27 @@ final class Settings
         return $merged;
     }
 
-    private static function normalizeModels(array $settings): array
+    private static function normalize(array $settings): array
     {
-        $allowed = array_keys(self::models());
-        $fallbacks = [
-            'model_research' => 'gpt-5.6-terra',
-            'model_audit' => 'gpt-5.6-luna',
-            'model_refresh' => 'gpt-5.6-terra',
-        ];
-
-        foreach ($fallbacks as $key => $fallback) {
-            if (!in_array((string) ($settings[$key] ?? ''), $allowed, true)) {
-                $settings[$key] = $fallback;
-            }
-        }
+        unset(
+            $settings['openai_api_key'],
+            $settings['nvidia_fallback_enabled'],
+            $settings['model_research'],
+            $settings['model_audit'],
+            $settings['model_refresh']
+        );
         if (trim((string) ($settings['nvidia_model'] ?? '')) === '') {
             $settings['nvidia_model'] = 'nvidia/llama-3.3-nemotron-super-49b-v1';
+        }
+        if (($settings['article_image_provider'] ?? '') === 'openai') {
+            $settings['article_image_provider'] = 'openverse';
         }
         if (!array_key_exists((string) ($settings['article_image_provider'] ?? ''), self::imageProviders())) {
             $settings['article_image_provider'] = 'openverse';
         }
+        $settings['ai_images_enabled'] = false;
 
         return $settings;
-    }
-
-    public static function apiKey(): string
-    {
-        $env = getenv('DSAP_OPENAI_API_KEY');
-        if (is_string($env) && $env !== '') {
-            return $env;
-        }
-        $settings = self::get();
-        return is_string($settings['openai_api_key']) ? $settings['openai_api_key'] : '';
     }
 
     public static function nvidiaApiKey(): string
@@ -258,16 +226,8 @@ final class Settings
         $old = self::get();
         $input = is_array($input) ? $input : [];
         $next = self::defaults();
-        $incomingKey = isset($input['openai_api_key']) ? trim((string) wp_unslash($input['openai_api_key'])) : '';
         $incomingNvidiaKey = isset($input['nvidia_api_key']) ? trim((string) wp_unslash($input['nvidia_api_key'])) : '';
 
-        if (!empty($input['delete_openai_api_key'])) {
-            $next['openai_api_key'] = '';
-        } elseif ($incomingKey !== '') {
-            $next['openai_api_key'] = $incomingKey;
-        } else {
-            $next['openai_api_key'] = (string) ($old['openai_api_key'] ?? '');
-        }
         if (!empty($input['delete_nvidia_api_key'])) {
             $next['nvidia_api_key'] = '';
         } elseif ($incomingNvidiaKey !== '') {
@@ -275,7 +235,6 @@ final class Settings
         } else {
             $next['nvidia_api_key'] = (string) ($old['nvidia_api_key'] ?? '');
         }
-        $next['nvidia_fallback_enabled'] = !empty($input['nvidia_fallback_enabled']);
         $preset = sanitize_text_field((string) ($input['nvidia_model_preset'] ?? ''));
         $custom = sanitize_text_field((string) ($input['nvidia_model_custom'] ?? ''));
         $legacy = sanitize_text_field((string) ($input['nvidia_model'] ?? ''));
@@ -284,17 +243,13 @@ final class Settings
             $next['nvidia_model'] = 'nvidia/llama-3.3-nemotron-super-49b-v1';
         }
 
-        $models = array_keys(self::models());
         $qualityProfiles = array_keys(self::qualityProfiles());
         $next['article_quality'] = in_array(($input['article_quality'] ?? ''), $qualityProfiles, true) ? (string) $input['article_quality'] : 'high';
         $imageProvider = sanitize_key((string) ($input['article_image_provider'] ?? 'openverse'));
         $next['article_image_provider'] = array_key_exists($imageProvider, self::imageProviders()) ? $imageProvider : 'openverse';
-        $next['ai_images_enabled'] = $next['article_image_provider'] === 'openai';
+        $next['ai_images_enabled'] = false;
         $keywordStrategies = array_keys(self::keywordStrategies());
         $next['keyword_strategy'] = in_array(($input['keyword_strategy'] ?? ''), $keywordStrategies, true) ? (string) $input['keyword_strategy'] : 'longtail';
-        $next['model_research'] = in_array(($input['model_research'] ?? ''), $models, true) ? (string) $input['model_research'] : 'gpt-5.6-terra';
-        $next['model_audit'] = in_array(($input['model_audit'] ?? ''), $models, true) ? (string) $input['model_audit'] : 'gpt-5.6-luna';
-        $next['model_refresh'] = in_array(($input['model_refresh'] ?? ''), $models, true) ? (string) $input['model_refresh'] : 'gpt-5.6-terra';
         $next['post_status'] = in_array(($input['post_status'] ?? ''), ['draft', 'pending', 'publish'], true) ? (string) $input['post_status'] : 'publish';
         $next['daily_enabled'] = !empty($input['daily_enabled']);
         $next['daily_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($input['daily_time'] ?? '')) ? (string) $input['daily_time'] : '09:00';
